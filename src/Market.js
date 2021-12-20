@@ -1,13 +1,22 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {io} from "socket.io-client";
 import {useParams} from "react-router-dom";
-import {Button, Card, CardContent, MuiThemeProvider, Slider, TextField, Chip, withStyles} from "@material-ui/core";
+import {
+    Button,
+    Card,
+    CardContent,
+    Chip,
+    MuiThemeProvider,
+    Slider,
+    TextField,
+    Tooltip,
+    withStyles,
+} from "@material-ui/core";
 import {themeOptions} from "./colors";
-import {XAxis, YAxis} from "react-stockcharts/lib/axes";
-import {CandlestickSeries} from "react-stockcharts/lib/series";
-import discontinuousTimeScaleProvider from "react-stockcharts/lib/scale/discontinuousTimeScaleProvider";
 import Chart from "react-apexcharts";
 import {CardTitle} from "reactstrap";
+import LogoutIcon from '@mui/icons-material/Logout';
+import {useAlert} from "react-alert";
 
 
 const BuySellSlider = withStyles({
@@ -21,6 +30,10 @@ const BuySellSlider = withStyles({
 })(Slider);
 
 function getShortname(name) {
+    if (!name) {
+        // Bug detector
+        return "NONAME"
+    }
     name = name.toUpperCase()
     if (name.length < 3) {
         return name.slice(0, 3).toUpperCase()
@@ -41,9 +54,9 @@ function TradeDialog(props) {
     </Card>
 }
 
-function PlayerChip(props: {}) {
+function PlayerOrderChip(props: {}) {
     const {partyOrderInfo, name, cancelOrder, transparent = false} = props
-    let width = 45;
+    let width = 55;
     let filledPercentString = ' ';
     if (partyOrderInfo.volume && partyOrderInfo.originalVolume) {
         let filledPercent = 1 - (partyOrderInfo.volume / partyOrderInfo.originalVolume);
@@ -54,16 +67,20 @@ function PlayerChip(props: {}) {
     let isYou = partyOrderInfo.name === name;
     let variant = !transparent ? "default" : "outlined";
     if (isYou) {
-        return <Chip size={"small"} style={{width}} variant={variant} label={"You" + filledPercentString}
-                     onDelete={cancelOrder}/>
+        return <PlayerChip style={{width}} variant={variant} label={"You" + filledPercentString}
+                           onDelete={cancelOrder}/>
     }
-    return <Chip size={"small"} style={{width}} variant={variant} label={getShortname(partyOrderInfo.name)}/>
+    return <PlayerChip style={{width}} variant={variant} name={partyOrderInfo.name}/>
+}
+
+function PlayerChip(props) {
+    return <Chip size={"small"} {...props} label={props.label || getShortname(props.name)}/>
 }
 
 function PriceVolume(props) {
     const {
         price, volume, partyOrderInfo, name, filledPercent, onClick = () => {
-        }, cancelOrder, hoverAble = true, background = 'transparent', backgroundWidth = 1
+        }, cancelOrderById, hoverAble = true, background = 'transparent', backgroundWidth = 1
     } = props;
     const paddingRight = 15;
     const [isShown, setIsShown] = useState(false);
@@ -94,8 +111,9 @@ function PriceVolume(props) {
              onMouseLeave={() => setIsShown(false)}
              onClick={onClick}>
             {partyOrderInfo !== undefined ? partyOrderInfo.map((partyOrderInfo) => (
-                <PlayerChip partyOrderInfo={partyOrderInfo} name={name} key={partyOrderInfo.orderId}
-                            filledPercent={filledPercent} cancelOrder={cancelOrder}/>
+                <PlayerOrderChip partyOrderInfo={partyOrderInfo} name={name} key={partyOrderInfo.orderId}
+                                 filledPercent={filledPercent}
+                                 cancelOrder={() => cancelOrderById(partyOrderInfo.orderId)}/>
             )) : []}
             <div style={{display: "flex", flex: 1, paddingRight}}>
 
@@ -113,7 +131,7 @@ function PriceVolume(props) {
 }
 
 function Bid(props) {
-    const {price, volume, onClick, cancelOrder, backgroundWidth, partyOrderInfo, yourFilledPercent, name} = props;
+    const {price, volume, onClick, cancelOrderById, backgroundWidth, partyOrderInfo, yourFilledPercent, name} = props;
 
     return <PriceVolume  {...{
         price,
@@ -121,7 +139,7 @@ function Bid(props) {
         partyOrderInfo,
         name,
         onClick,
-        cancelOrder,
+        cancelOrderById,
         filledPercent: yourFilledPercent,
         background: themeOptions.palette.buy,
         backgroundWidth
@@ -129,7 +147,7 @@ function Bid(props) {
 }
 
 function Ask(props) {
-    const {price, volume, onClick, cancelOrder, backgroundWidth, partyOrderInfo, yourFilledPercent, name} = props;
+    const {price, volume, onClick, cancelOrderById, backgroundWidth, partyOrderInfo, yourFilledPercent, name} = props;
 
     return <PriceVolume  {...{
         price,
@@ -137,7 +155,7 @@ function Ask(props) {
         partyOrderInfo,
         name,
         onClick,
-        cancelOrder,
+        cancelOrderById,
         filledPercent: yourFilledPercent,
         background: themeOptions.palette.sell,
         backgroundWidth
@@ -154,14 +172,15 @@ function aggregateOrders(orders) {
         pricePoints[order.price].push(order)
     })
 
-    return Object.entries(pricePoints).sort(([k, v]) => k)
+    return Object.entries(pricePoints).sort(([k, order1], [k2, order2]) => orderSortFunction(order1, order2))
         .map(([k, orders]) => {
             const firstOrder = Object.assign({}, orders[0])
 
             firstOrder.partyOrderInfo = [{
                 name: firstOrder.name,
                 originalVolume: firstOrder.originalVolume,
-                volume: firstOrder.volume
+                volume: firstOrder.volume,
+                orderId: firstOrder.orderId
             }]
 
             // delete any values "personal" to that order
@@ -182,8 +201,52 @@ function aggregateOrders(orders) {
 
 }
 
+function PullOrdersButton(props: { onClick: pullOrders | * }) {
+    return <Tooltip title="Pull all Outstanding Orders">
+        <Button
+            disabled={!props.youHaveOutstandingOrders}
+            style={{
+                borderWidth: 1,
+                borderColor: 'rgba(0,0,0,0.2)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: themeOptions.palette.sell,
+                borderRadius: 50,
+            }}
+            onClick={props.onClick}>
+            <LogoutIcon size={30} color="#000"/>
+        </Button>
+    </Tooltip>
+}
+
+function OrderBookControls(props: {}) {
+    return <div style={{display: "flex", flexDirection: "row", justifyContent: "space-evenly", ...props.style}}>
+        <Tooltip title="Place bid at minimum price above current best">
+            <Button disabled={!props.bidsExist} variant={"outlined"} color={themeOptions.palette.buy}
+                    onClick={props.placeDimeBid}> Dime Bid </Button>
+        </Tooltip>
+        <PullOrdersButton onClick={props.pullOrders} youHaveOutstandingOrders={props.youHaveOutstandingOrders}/>
+        <Tooltip title="Place ask at maximum price below current best">
+            <Button disabled={!props.asksExist} variant={"outlined"} color={themeOptions.palette.sell}
+                    onClick={props.placeDimeAsk}> Dime Ask </Button>
+        </Tooltip>
+    </div>;
+}
+
 function OrderBook(props) {
-    const {bids, asks, setActivePrice, name, cancelOrderById} = props;
+    const {
+        bids,
+        asks,
+        setActivePrice,
+        name,
+        cancelOrderById,
+        placeDimeBid,
+        placeDimeAsk,
+        pullOrders,
+        youHaveOutstandingOrders,
+        bidsExist,
+        asksExist
+    } = props;
     console.log("bids", bids, "asks", asks)
     const OrderBookHeaders = () => (
         <div style={{display: "flex", flexDirection: "row"}}>
@@ -197,22 +260,29 @@ function OrderBook(props) {
         <h2>
             Order Book
         </h2>
-        <div style={{display: "flex", flexDirection: "column", flex: 1}}>
+        <div style={{display: "flex", flexDirection: "column", flex: 1, maxHeight:"40%"}}>
             <OrderBookHeaders/>
             <div style={{display: "flex", flexDirection: "column-reverse", flex: 1}}>
 
                 {aggregateOrders(asks)
                     .map((ask) => (
-                        <Ask {...ask} name={name} key={ask.orderId} cancelOrder={() => cancelOrderById(ask.orderId)}
+                        <Ask {...ask} name={name} key={ask.orderId} cancelOrderById={cancelOrderById}
                              backgroundWidth={ask.volume / totalAskVolume} onClick={() => setActivePrice(ask.price)}/>
                     ))}
             </div>
         </div>
-
-        <div style={{display: "flex", flexDirection: "column", flex: 1}}>
-            <div style={{display: "flex", flexDirection: "column-reverse", flex: 1}}>
+        <OrderBookControls style={{margin: 10}} {...{
+            placeDimeAsk,
+            placeDimeBid,
+            pullOrders,
+            youHaveOutstandingOrders,
+            bidsExist,
+            asksExist
+        }}/>
+        <div style={{display: "flex", flexDirection: "column", flex: 1, maxHeight:"40%"}}>
+            <div style={{display: "flex", flexDirection: "column-reverse", justifyContent: "flex-end", flex: 1}}>
                 {aggregateOrders(bids).map((bid) => (
-                    <Bid {...bid} name={name} key={bid.orderId} cancelOrder={() => cancelOrderById(bid.orderId)}
+                    <Bid {...bid} name={name} key={bid.orderId} cancelOrderById={cancelOrderById}
                          backgroundWidth={bid.volume / totalBidVolume} onClick={() => setActivePrice(bid.price)}/>
                 ))}
             </div>
@@ -225,10 +295,10 @@ function OrderBook(props) {
 function OrderWindow(props) {
 
     const {
-        getStandingPosition,
         submitOrder,
-        getStandingAskVol,
-        getStandingBidVol,
+        standingAskVol,
+        standingBidVol,
+        yourPlayerData,
         socket,
         price,
         setPrice,
@@ -238,8 +308,16 @@ function OrderWindow(props) {
     const [volume, setVolume] = useState(0);
 
     const isBid = () => volume > 0;
-    const maxSell = -maxPosition + getStandingAskVol()
-    const maxBuy = maxPosition - getStandingBidVol();
+
+    const yourPosition = yourPlayerData ? yourPlayerData.totalLongVolume - yourPlayerData.totalShortVolume : 0
+
+    const maxSell = -maxPosition + standingAskVol + yourPosition
+    const maxBuy = maxPosition - standingBidVol - yourPosition;
+
+    let cappedVolume = Math.min(Math.max(volume, maxSell), maxBuy);
+    if (cappedVolume && cappedVolume !== volume) {
+        setVolume(cappedVolume)
+    }
     return <TradeDialog style={{height: 300, width: 400, marginBottom: 20}}>
         <h2>
             Place an Order
@@ -255,7 +333,7 @@ function OrderWindow(props) {
             <TextField type="number" label={"Price"} style={{width: 200}} value={price}
                        onChange={(e) => setPrice(e.target.value)}/>
             <TextField type="number" style={{width: 200}} label="Volume" value={volume}
-                       onChange={(e) => setVolume(e.target.value)}/>
+                       onChange={(e) => setVolume(Math.min(Math.max(e.target.value, maxSell), maxBuy))}/>
             <BuySellSlider
                 defaultValue={0}
                 step={1}
@@ -271,7 +349,7 @@ function OrderWindow(props) {
                     backgroundColor: themeOptions.palette.sell,
                     color: "white"
                 })
-            }} onClick={() => submitOrder(price, volume)}>
+            }} onClick={() => submitOrder(price, volume, "limit")}>
                 Place {isBid() ? "Bid" : "Offer"}
             </Button>
         </div>
@@ -309,17 +387,17 @@ function Tick(newTick) {
         justifyContent: "center",
         background: setOpacity(bidWasAggressor ? themeOptions.palette.buy : themeOptions.palette.sell, 0.2)
     }}>
-        <PlayerChip partyOrderInfo={{name: buyer}} transparent={true} name={name}/>
-        <div style={{display: "flex", flex: 0.7, justifyContent: "center"}}><PricePoint price={price} volume={volume} /></div>
-        <PlayerChip partyOrderInfo={{name: seller}} transparent={true} name={name}/>
+        <PlayerOrderChip partyOrderInfo={{name: buyer}} transparent={true} name={name}/>
+        <div style={{display: "flex", flex: 0.7, justifyContent: "center", marginLeft: "auto", marginRight: "auto"}}>
+            <PricePoint price={price} volume={volume}/></div>
+        <PlayerOrderChip partyOrderInfo={{name: seller}} transparent={true} name={name}/>
     </div>
 }
 
 function TickBook(props) {
     const {ticks, name} = props
     return <TradeDialog style={{
-        background: themeOptions.palette.secondary.dark,
-        width: 2, height: "100%", flex: 1, flexBasis:100
+        background: themeOptions.palette.secondary.dark, marginLeft: 10, height: "100%", flex: 1, flexBasis: 120
     }}>
         <CardContent>
             <h3>
@@ -344,35 +422,50 @@ function seenTransaction({transactionId}) {
 }
 
 function safeDiv(n, d) {
-    if (d == 0) {
+    if (d === 0) {
         return 0;
     }
     return n / d
 }
 
+const fractionDigits = 2;
+
 function Player(props: {}) {
     const {playerData} = props
+    console.log("playerdata in player is ", props)
     const averageBuy = safeDiv(playerData.longPosition, playerData.totalLongVolume);
     const averageSell = safeDiv(playerData.shortPosition, playerData.totalShortVolume);
-    return <Card style={{width:200,height:150}}>
+    return <Card style={{width: 200, height: 150}}>
         <CardTitle>
             {getShortname(playerData.name)}
         </CardTitle>
-        <div style={{display:"flex",flexDirection:"row", alignItems:"center",width:"100%", justifyContent:"center"}}>
-        <span>${playerData.scrapedValue}</span>
-        <img
-            style={{display:"inline-block", height:17,width:17,marginTop:2}}
-            src={true?
-                "https://img.icons8.com/ios-glyphs/100/26e07f/sort-up.png" :
-                "https://img.icons8.com/ios-glyphs/100/26e07f/sort-down.png"}/>
+        <div style={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            width: "100%",
+            justifyContent: "center"
+        }}>
+            <span>${playerData.scrapedValue}</span>
+            <img
+                style={{display: "inline-block", height: 17, width: 17, marginTop: 2}}
+                src={true ?
+                    "https://img.icons8.com/ios-glyphs/100/26e07f/sort-up.png" :
+                    "https://img.icons8.com/ios-glyphs/100/26e07f/sort-down.png"}/>
         </div>
-        <div style={{display:"flex",flexDirection:"row", alignItems:"center",width:"100%", justifyContent:"center"}}>
+        <div style={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            width: "100%",
+            justifyContent: "center"
+        }}>
             <span>
-                Position : {playerData.totalLongVolume - playerData.totalShortVolume}
-                <br />
-                Average Buy Price {averageBuy}
-                <br />
-                Average Sell Price {averageSell}
+                Position : {(playerData.totalLongVolume - playerData.totalShortVolume).toFixed(fractionDigits)}
+                <br/>
+                Average Buy Price {averageBuy.toFixed(fractionDigits)}
+                <br/>
+                Average Sell Price {averageSell.toFixed(fractionDigits)}
             </span>
         </div>
     </Card>;
@@ -380,10 +473,18 @@ function Player(props: {}) {
 
 function PlayerDataDiag(props) {
     const {playerData} = props
+    // null comes in here quit it
+    console.log("playerdata is ", props)
     return <TradeDialog style={{width: "100%"}}>
-        <div style={{display:"flex",flexWrap:"wrap", justifyContent:"space-between"}}>
+        <div style={{
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "space-around",
+            overflowY: "scroll",
+            maxHeight: 300
+        }}>
             {playerData.map((playerData) => (
-                <Player playerData={playerData} />
+                <Player playerData={playerData}/>
             ))}
         </div>
     </TradeDialog>;
@@ -393,9 +494,16 @@ let time = 1538884800000
 let currprice = 6605
 
 
-function Market(props) {
+function orderSortFunction({price: price1, orderId: orderId1}, {price: price2, orderId: orderId2}) {
+    return (+(price1 > price2) || +(price1 === price2) - 1) ||
+        (+(orderId1 > orderId2) || +(orderId1 === orderId2) - 1)
+}
+
+const Market = (props) => {
     const {gameId} = useParams();
-    const [socket, setSocket] = useState(() => io("ws://127.0.0.1:3000/game", {
+    const {height, width, replayData} = props;
+    const [socket] = useState(() => io(`/ws`, {
+//        transports: ['websocket'],
         withCredentials: true,
     }));
 
@@ -403,7 +511,6 @@ function Market(props) {
 
     // Game state
     const [name, setName] = useState('');
-    const nameRef = useRef(name);
     const [joined, setJoined] = useState(false);
     const [parties, setParties] = useState([]);
     const [bids, setBids] = useState([])
@@ -458,6 +565,9 @@ function Market(props) {
     console.log("My outstanding orders", myOutstandingOrders)
     const [ticks, setTicks] = useState([])
     const [playerData, setPlayerData] = useState({})
+    const [gameName, setGameName] = useState()
+    const [gameMinutes, setGameMinutes] = useState()
+    const [tickSize, setTickSize] = useState()
     const ticksRef = useRef(ticks)
     const stockData = useMemo(() => {
         //const ticks = ticksRef.current
@@ -504,65 +614,80 @@ function Market(props) {
         return data1
     }, [ticks])
 
-    useEffect(() => {
-        socket.connect()
-
-        socket.on('gameJoin', (party) => {
+    const marketEventHandlers = {
+        'gameJoin': ({name: party}) => {
             console.log('joined', parties, party);
             setParties((parties) => [...parties, party])
-        })
-
-        socket.on('erroneousAction', ({message}) => {
+        },
+        'erroneousAction': ({message}) => {
             setError("There was an error performing that last task. Message" + message)
-        })
-
-        socket.on('orderInsert', (order) => {
-            console.log("order came in ", order)
-            if (seenTransaction(order)) {
-                // AAAAAAHa
-                return;
+        }, 'youJoined': (playerData) => {
+            if (!joined) {
+                setJoined(true);
             }
-            const orderAddFunction = (orders) => {
-                const newOrders = [...orders, order]
-                newOrders.sort(({price: price1}, {price: price2}) => price1 - price2)
-                return newOrders;
-            }
-
-            const publicOrderList = (order.isBid ? setBids : setAsks);
-            if (order.name === nameRef.current) {
-                setMyOutStandingOrders(orderAddFunction)
-            }
-            publicOrderList(orderAddFunction)
-        })
-
-        socket.on('gameState', ({gameName, gameMinutes, gameId, parties, bids, asks, ticks, playerData}) => {
+        },
+        'gameView': ({gameName, gameMinutes, parties}) => {
             setParties(parties)
-            setBids(bids)
-            setAsks(asks)
-            setTicks(ticks)
-            setPlayerData(playerData)
-            console.log('state set');
-        })
-
-        socket.on('playerDataUpdate', (updatedPlayerData) => {
+            setGameName(gameName)
+            setGameMinutes(gameMinutes)
+        }, 'playerDataUpdate': (updatedPlayerData) => {
             setPlayerData((playerData) => {
-                let playerDataCopy = Object.assign({}, playerData);
+                let playerDataCopy = {...playerData};
                 playerDataCopy[updatedPlayerData.name] = updatedPlayerData;
                 console.log("new player data is ", playerDataCopy)
                 return playerDataCopy;
             })
-        })
-
-        socket.on('onTick', (newTick) => {
-            if (seenTransaction(newTick)) {
+        }, 'onTick': (newTick) => {
+            /*if (seenTransaction(newTick)) {
                 return;
+            }*/
+
+            setTicks((ticks) => {
+                    console.log("ticks are", ticks);
+                    return [...ticks, newTick]
+                }
+            )
+        }
+    }
+
+    const onJoinedHandlers = {
+        'orderInsert': (order) => {
+            console.log("order came in ", order)
+            /*if (seenTransaction(order)) {
+                // AAAAAAHa
+                return;
+            }*/
+            const orderAddFunction = (orders) => {
+                const newOrders = [...orders, order]
+                newOrders.sort(orderSortFunction);
+                console.log("after insert, ", orders)
+                return newOrders;
             }
-            setTicks((ticks) => [...ticks, newTick])
-            console.log("ticks are", ticks);
-        })
 
-        socket.on('orderUpdate', (newOrder) => {
-
+            const publicOrderList = (order.isBid ? setBids : setAsks);
+            if (order.name === name) {
+                setMyOutStandingOrders(orderAddFunction)
+            }
+            publicOrderList(orderAddFunction)
+        }, 'gameState': ({gameName, gameMinutes, gameId, parties, bids, asks, ticks, playerData, tickSize=0.1}) => {
+            console.log("Initial game state", {gameName, gameMinutes, gameId, parties, bids, asks, ticks, playerData, tickSize})
+            setParties(parties)
+            setBids(bids)
+            setAsks(asks)
+            setTickSize(Number(tickSize))
+            setMyOutStandingOrders((orders) => {
+                return [...orders, ...bids.filter((bid) => bid.name === name), ...asks.filter((ask) => ask.name === name)]
+            })
+            setGameName(gameName)
+            setGameMinutes(gameMinutes)
+            setTicks(ticks)
+            setPlayerData((oldPlayerData) => {
+                let playerDataCopy = {...playerData, ...oldPlayerData};
+                console.log("new player data is ", playerDataCopy)
+                return playerDataCopy;
+            })
+            console.log('state set');
+        }, 'orderUpdate': (newOrder) => {
             const orderAddFunction = ((orders) => {
                 /*
                     for (let i = 0; i < orders.length; i++) {
@@ -575,48 +700,115 @@ function Market(props) {
                         break
                     }
                 }*/
-                const newOrderList = newOrder.volume === 0 ? [] : [newOrder]
-                return [...orders.filter(({orderId: iterOrderId}) => iterOrderId !== newOrder.orderId), ...newOrderList]
-                    .sort(({price: price1}, {price: price2}) => price1 - price2);
+                const retOrders = [...orders]
+
+                for (let i = 0; i < retOrders.length; i++) {
+                    if (retOrders[i].orderId === newOrder.orderId) {
+                        if (newOrder.volume !== 0) {
+                            retOrders[i] = newOrder
+                        } else {
+                            retOrders.splice(i, 1)
+                        }
+                        break;
+                    }
+                }
+                console.log("orders after update ", retOrders)
+                return retOrders;
             })
 
             const publicOrderList = (newOrder.isBid ? setBids : setAsks);
-            if (newOrder.name === nameRef.current) {
+            if (newOrder.name === name) {
                 setMyOutStandingOrders(orderAddFunction)
             }
             publicOrderList(orderAddFunction)
-        })
+        }
+    }
+
+    useEffect(() => {
+        if (replayData) {
+            let i = 0
+            marketEventHandlers['youJoined']()
+            setInterval(() => {
+                if (i >= replayData.length) {
+                    return;
+                }
+                const [event, data] = replayData[i]
+                onJoinedHandlers[event]?.(data)
+                marketEventHandlers[event]?.(data)
+                console.log("emitting ", event, data)
+                i++
+            }, 700)
+
+            return;
+        }
+        socket.connect()
+
+        Object.entries(marketEventHandlers)
+            .forEach(([event, handler]) =>
+                socket.on(event, handler))
+
+        socket.emit('viewGame', gameId);
     }, [])
 
+    // Stuff that requires game state
+    useEffect(() => {
+        if (!joined || replayData) {
+            return;
+        }
+        Object.entries(onJoinedHandlers)
+            .forEach(([event, handler]) =>
+                socket.on(event, handler))
 
-    const submitOrder = (price, volume) => {
+    }, [joined])
+
+    const submitOrder = (price, volume, orderType) => {
         if (volume === 0 || price === 0) {
             return;
         }
         const isBid = volume > 0
-        const order = {price, volume: isBid ? volume : -volume, isBid};
+        const order = {price, volume: isBid ? volume : -volume, isBid, orderType};
         console.log("submitting order", order)
         socket.emit('insertOrder', order);
     }
 
     const submitName = () => {
-        socket.emit("joinGame", gameId, name);
-        setJoined(true);
+        socket.emit("joinGame", name);
     }
 
     const cancelOrderById = (id) => {
         socket.emit("cancelOrder", id)
     }
+    const yourPlayerData = useMemo(() => {
+        return playerData[name];
+    }, [joined, playerData])
 
-    const getStandingBidVol = useCallback(() => {
+    const standingBidVol = useMemo(() => {
         return myOutstandingOrders.reduce((sum, {volume, isBid}) => sum + (isBid ? volume : 0), 0)
-    })
+    }, [myOutstandingOrders])
 
-    const getStandingAskVol = useCallback(() => {
+    const standingAskVol = useMemo(() => {
         return myOutstandingOrders.reduce((sum, {volume, isBid}) => sum + (!isBid ? volume : 0), 0)
     }, [myOutstandingOrders])
 
     const [price, setPrice] = useState(0);
+
+    //let alert = useAlert();
+
+    const placeDimeBid = () => {
+        const {price, volume} = bids[bids.length - 1]
+        submitOrder(Number(price) + tickSize, 1, "dime")
+    }
+
+    const placeDimeAsk = () => {
+        const {price, volume} = asks[0]
+        submitOrder(Number(price) - tickSize, -1, "dime")
+    }
+
+    const pullOrders = () => {
+        console.log("pull orders requested")
+        socket.emit("pullOrders")
+    }
+
 
     const JoinedMarket = useCallback(() => {
 
@@ -634,15 +826,13 @@ function Market(props) {
                 </CardContent>
             </TradeDialog>
         }*/
-
-
     })
-    const data = [{date: new Date().getTime(), open: 3, high: 5, low: 2, close: 2},
+    const exampleMarketData = [{date: new Date().getTime(), open: 3, high: 5, low: 2, close: 2},
         {date: new Date().getTime(), open: 3, high: 5, low: 2, close: 2}]
 
     return (
         <MuiThemeProvider theme={themeOptions}>
-            <div style={{width: '100%', height: '100%'}}>
+            <div style={{width: width || '100%', height: height || '100%'}}>
                 {!joined ?
                     <TradeDialog style={{
                         display: "flex",
@@ -650,67 +840,118 @@ function Market(props) {
                         marginTop: 50,
                         flexDirection: "column",
                         width: 300,
-                        padding: 50
+                        padding: 35
                     }}>
-                        <h2 style={{margin: 10}}>Please write your name</h2>
-                        <TextField value={name} onChange={(val) => setName(val.target.value)}
-                                   label="Joining market as"/>
-                        <Button style={{marginTop: 30}} onClick={() => submitName()}>
-                            Join Market
-                        </Button>
+                        <h2 style={{marginBottom: '10', width: 280}}>{`Joining market on ${gameName}`}</h2>
+                        <h3>{`It will last ${gameMinutes} minutes`}</h3>
+                        <br/>
+                        <p>
+                            Current players
+                        </p>
+                        <div style={{
+                            display: "flex",
+                            marginTop: 10,
+                            flexWrap: "wrap",
+                            justifyContent: "space-around",
+                            alignItems: "center"
+                        }}>
+                            {Object.values(parties).map((name) => (
+                                <PlayerChip name={name}/>
+                            ))}
+                        </div>
+                        <TextField value={name} style={{marginTop: 30}} onChange={(val) => setName(val.target.value)}
+                                   label={`Joining market as`}/>
+                        {
+                            name ? <>
+                                <div style={{
+                                    display: "flex",
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    marginTop: 30
+                                }}>
+                                    <div style={{flex: 1}}/>
+                                    <Button onClick={() => submitName()}>
+                                        Joining Market as
+                                    </Button>
+                                    <PlayerChip name={name}/>
+                                </div>
+                            </> : []
+                        }
+
+
                     </TradeDialog>
                     : <div style={{display: 'flex', flexDirection: 'column', width: '100%', height: '100%'}}>
-                        <div style={{display: "flex", flexDirection: 'row', height: "100%", flexWrap:"wrap"}}>
-                            <div style={{display: "flex", flex:7, flexDirection: "column", height: "auto", minHeight:700, flexBasis:"900px"}}>
-                                <div style={{flex:2, display:"block", width:"100%"}}
-                                ><div style={{margin:20,height:"100%"}}><Chart options={{
-                                    chart: {
-                                        type: 'candlestick',
-                                        height: "100%",
-                                        width: "100%",
-                                        animations: {
-                                            enabled: false,
-                                            dynamicAnimation: {
+                        <div style={{display: "flex", flexDirection: 'row', height: "100%", flexWrap: "wrap"}}>
+                            <div style={{
+                                display: "flex",
+                                flex: 7,
+                                flexDirection: "column",
+                                height: "auto",
+                                minHeight: 700,
+                                flexBasis: "700px"
+                            }}>
+                                <div style={{flex: 2, display: "block", width: "100%"}}>
+                                    <div style={{margin: 20, height: "100%"}}><Chart options={{
+                                        chart: {
+                                            type: 'candlestick',
+                                            height: "100%",
+                                            width: "100%",
+                                            animations: {
                                                 enabled: false,
+                                                dynamicAnimation: {
+                                                    enabled: false,
+                                                }
+                                            }
+
+                                        },
+                                        title: {
+                                            text: gameName,
+                                            align: 'left'
+                                        },
+                                        xaxis: {
+                                            type: 'datetime'
+                                        },
+                                        yaxis: {
+                                            tooltip: {
+                                                enabled: false
                                             }
                                         }
-
-                                    },
-                                    title: {
-                                        text: 'CandleStick Chart',
-                                        align: 'left'
-                                    },
-                                    xaxis: {
-                                        type: 'datetime'
-                                    },
-                                    yaxis: {
-                                        tooltip: {
-                                            enabled: false
-                                        }
-                                    }
-                                }} height={"100%"}  series={[{
-                                    data: stockData
-                                }]} type="candlestick"/>
-                                </div>
+                                    }} height={"100%"} series={[{
+                                        data: stockData
+                                    }]} type="candlestick"/>
+                                    </div>
                                 </div>
                                 <div style={{padding: 20, paddingLeft: 50, flex: 1.4, display: "flex"}}>
                                     <PlayerDataDiag playerData={Object.values(playerData)}/>
                                 </div>
                             </div>
                             <div style={{display: "flex", flexDirection: 'column'}}>
-                                <OrderBook {...{bids, asks, name, socket, cancelOrderById}} setActivePrice={setPrice}/>
+                                <OrderBook {...{
+                                    bids,
+                                    asks,
+                                    name,
+                                    socket,
+                                    cancelOrderById,
+                                    placeDimeBid,
+                                    placeDimeAsk,
+                                    pullOrders,
+                                    youHaveOutstandingOrders: myOutstandingOrders.length > 0,
+                                    asksExist: asks.length > 0,
+                                    bidsExist: bids.length > 0,
+                                }} setActivePrice={setPrice}/>
                                 <br/>
                                 <span style={{color: "white"}}>{error}</span>
                                 <OrderWindow {...{
                                     price,
                                     setPrice,
                                     name,
-                                    getStandingAskVol,
-                                    getStandingBidVol,
+                                    standingAskVol,
+                                    standingBidVol,
+                                    yourPlayerData,
                                     submitOrder
                                 }} />
                             </div>
-                            <div style={{flex: 0.05}}/>
+                            <div style={{flex: 0.1}}/>
                             <TickBook ticks={ticks} name={name}/>
                         </div>
                     </div>
