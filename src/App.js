@@ -1,18 +1,18 @@
 import './App.css';
 import './colors'
-import {ipAddress} from './network.js'
 import {themeOptions} from "./colors";
 import React, {useEffect, useRef, useState} from 'react';
-import {Button, Card, MuiThemeProvider, Slide, TextField} from '@material-ui/core'
+import {Button, Card, CardContent, InputAdornment, MuiThemeProvider, Slide, TextField} from '@material-ui/core'
 import {Route, Switch as RouteSwitch, useLocation, withRouter} from "react-router-dom";
 import Market from "./Market";
 import TextTransition from "react-text-transition";
-import {Container, Jumbotron} from 'reactstrap';
+import {CardTitle, Container, Jumbotron} from 'reactstrap';
 import {Provider as AlertProvider} from 'react-alert'
 import AlertTemplate from 'react-alert-template-basic'
 import {ExampleGameData1} from "./DemoGames";
 
 let textSequence = 0;
+
 
 function HomeScreen(props) {
     const [createGame, setCreateGame] = useState(false)
@@ -22,16 +22,23 @@ function HomeScreen(props) {
     const [marketValue, setMarketValue] = useState('')
     const [gameMinutes, setGameMinutes] = useState(5)
     const [errorMessage, setErrorMessage] = useState("")
+    const [showMore, setShowMore] = useState(false)
+    const [unitPrefix, setUnitPrefix] = useState("$")
+    const [unitSuffix, setUnitSuffix] = useState("")
+    const [tickSize, setTickSize] = useState("0.1")
+    const [gameExposure, setGameExposure] = useState("5")
+    const [exampleShow, setExampleShow] = useState(false)
+    document.title = "Market? Made."
 
     const submitNewGame = () => {
         const requestOptions = {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({gameName, gameMinutes, marketValue})
+            body: JSON.stringify({gameName, gameMinutes, marketValue, tickSize, unitSuffix, unitPrefix, gameExposure})
         };
-        fetch(`http://${ipAddress}/api/game/`, requestOptions)
+        fetch(`/api/game/`, requestOptions)
             .then(data => {
-                    console.log(data)
+                console.log(data)
                     if (data.status === 200) {
                         data.json().then(({gameId}) =>
                             props.history.push(`/game/${gameId}`)
@@ -64,7 +71,8 @@ function HomeScreen(props) {
         }, 1000)
     }, [])
     const container = useRef()
-
+    const mainContentContainer = useRef()
+    const marginTopTextFields = 5
     return <AlertProvider template={AlertTemplate}>
         <div style={{
             height: '100%',
@@ -73,10 +81,10 @@ function HomeScreen(props) {
             display: "flex",
             flexDirection: "row",
             background: "url(https://www.marketplace.org/wp-content/uploads/2021/10/stockmarket.jpg)",
-            flexWrap: "wrap"
-        }}>
-            <div style={{display: "flex", flexDirection: "column", height: '100%', flex: 1, width: "100%"}}>
-                <Jumbotron style={{color: "white", width: '100%'}}>
+            flexWrap: "wrap", overflowX: "hidden"
+        }} ref={mainContentContainer}>
+            <div style={{display: "flex", flexDirection: "column", flex: 1, height: '100%', width: "100%"}}>
+                <Jumbotron style={{color: "white", width: '100%', height: 200}}>
                     <div style={{flex: 1, display: "flex", height: 100}}/>
                     <Container fluid style={{
                         display: "flex",
@@ -85,7 +93,14 @@ function HomeScreen(props) {
                         marginLeft: "auto",
                         marginRight: "auto",
                     }}>
-                        <h1 className="display-3" style={{width: "auto", marginLeft: 10, marginRight: "auto"}}>
+                        <h1 className="display-3" style={{
+                            width: "auto",
+                            marginLeft: 10,
+                            marginRight: "auto",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "flex-start"
+                        }}>
                             <TextTransition
                                 style={{color: "white", marginRight: "0.25em", width: "100%", textAlign: "start"}}
                                 inline
@@ -103,30 +118,100 @@ function HomeScreen(props) {
                             margin: "auto",
                             marginTop: 50,
                             flexDirection: "column",
-                            minHeight: "200px",
-                            padding: 40
+                            padding: 40,
                         }}>
-                            <h2>Make a Market</h2>
-                            <TextField value={gameName} onChange={(val) => setGameName(val.target.value)}
-                                       label="Making a market on"/>
+                            <CardTitle>
+                                <h2>Make a Market</h2>
+                            </CardTitle>
+                            <CardContent style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                minHeight: "200px",
+                                overflowY: "auto",
+                            }}>
+                                <TextField style={{marginTop: marginTopTextFields, minHeight: "3em"}} value={gameName}
+                                           onChange={(val) => setGameName(val.target.value)}
+                                           label="Market on"/>
 
-                            <TextField value={marketValue} type="number"
-                                       onChange={(val) => setMarketValue(val.target.value)}
-                                       label="The value of the market is"/>
-                            <div style={{display: "flex", flexDirection: "row", alignContent: "center"}}>
-                                <TextField value={gameMinutes} onChange={(val) => setGameMinutes(val.target.value)}
-                                           type="number" style={{width: 200}} label="Market Ends after">
-                                </TextField><label style={{marginTop: "auto"}}> minutes </label>
-                            </div>
-                            <br/>
-                            {errorMessage ?
-                                <h3 style={{color: themeOptions.palette.error}}>
-                                    Error: {errorMessage}
-                                </h3> : []
-                            }
-                            <Button style={{marginTop: 30}} onClick={() => submitNewGame()}>
-                                Create Game
-                            </Button>
+                                <TextField style={{marginTop: marginTopTextFields, minHeight: "3em"}}
+                                           value={marketValue} type="number"
+                                           onChange={(val) => setMarketValue(val.target.value)}
+                                           sx={{m: 1, width: '25ch'}}
+                                           InputProps={{
+                                               startAdornment: <InputAdornment
+                                                   position="start">{unitPrefix}</InputAdornment>,
+                                               endAdornment: <InputAdornment
+                                                   position="start">{unitSuffix}</InputAdornment>,
+                                           }}
+
+                                           label="Value of the market"/>
+
+                                <div style={{
+                                    display: "block",
+                                    textAlign: "left",
+                                    alignContent: "end",
+                                    marginTop: marginTopTextFields,
+                                    height: "max-content"
+
+                                }}>
+                                    <TextField value={gameExposure}
+
+                                               onChange={(val) => setGameExposure(val.target.value)}
+                                               type="number"
+                                               sx={{m: 1, width: '25ch'}}
+                                               InputProps={{
+                                                   startAdornment: <InputAdornment position="start">£</InputAdornment>,
+                                               }}
+                                               style={{width: 200, marginRight: 10, minHeight: "3em"}}
+                                               label="Exposure">
+                                    </TextField>
+                                    <TextField value={gameMinutes}
+
+                                               onChange={(val) => setGameMinutes(val.target.value)}
+                                               type="number" style={{width: 200, minHeight: "3em"}}
+                                               label="Market Ends after"
+                                               sx={{m: 1, width: '25ch'}}
+                                               InputProps={{
+                                                   endAdornment: <InputAdornment
+                                                       position="end">minutes</InputAdornment>,
+                                               }}/>
+                                </div>
+                                {showMore ?
+                                    <div style={{
+                                        display: "flex",
+                                        minHeight: "3em",
+                                        flexDirection: "row",
+                                        marginTop: 10,
+                                        width: "100%"
+                                    }}>
+                                        <TextField style={{marginRight: 5, minHeight: "3em"}} value={unitPrefix}
+                                                   onChange={(val) => setUnitPrefix(val.target.value)}
+                                                   label="Unit prefix"/>
+                                        <TextField style={{marginRight: 5, minHeight: "3em"}} value={tickSize}
+                                                   type="number"
+                                                   onChange={(val) => setTickSize(val.target.value)}
+                                                   label="Tick Size"/>
+                                        <TextField style={{minHeight: "3em"}} value={unitSuffix}
+                                                   placeholder={"i.e. x10^3"}
+                                                   onChange={(val) => setUnitSuffix(val.target.value)}
+                                                   label="Unit suffix"/>
+
+                                    </div>
+                                    : <Button style={{minHeight: "3em"}} onClick={() => setShowMore(true)}>
+                                        Show More
+                                    </Button>}
+
+                                {errorMessage ?
+                                    <h3 style={{color: themeOptions.palette.error}}>
+                                        Error: {errorMessage}
+                                    </h3> : []
+                                }
+                                <Button style={{marginTop: 20, marginBottom: 40, minHeight: "3em"}} color={"primary"}
+                                        variant={"contained"}
+                                        onClick={() => submitNewGame()}>
+                                    Create Game
+                                </Button>
+                            </CardContent>
                         </Card>
                     </Slide>
 
@@ -141,18 +226,25 @@ function HomeScreen(props) {
                         maxWidth: "400px",
                         marginTop: "50px",
                     }}>
-                        <Button style={{color: "white", marginTop: "50px"}} variant="outlined" onClick={() => {
-                            setCreateGame(true)
-                        }}> Create A Market </Button>
-                        <Button style={{color: "white", marginTop: "50px"}} variant="outlined"> Participate In A
-                            Market </Button>
+                        <Button style={{color: "white", marginTop: "50px", minHeight: 35}} variant="contained"
+                                color={"primary"}
+                                onClick={() => {
+                                    setCreateGame(true)
+                                }}> Create A Market </Button>
+                        {exampleShow ? undefined :
+                            <Button style={{color: "white", marginTop: "50px", minHeight: 35}} variant="contained"
+                                    color={"secondary"}
+                                    onClick={() => {
+                                        setExampleShow(true)
+                                    }}> Show An Example Game </Button>}
+                        <div style={{minHeight: 30}}></div>
                     </div>
                 }
-                <div style={{height: createGame ? 30 : 300}}/>
             </div>
-            <div style={{flex: 1, height: "100%"}}>
-                <Market replayData={ExampleGameData1} />
-            </div>
+            <Slide direction="left" in={exampleShow} container={mainContentContainer.current}>
+                {<div style={{flex: 1, height: "100%", display: exampleShow ? "block" : "none"}}> {exampleShow ? <Market
+                    replayData={ExampleGameData1}/> : null} </div>}
+            </Slide>
         </div>
     </AlertProvider>
 }

@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {io} from "socket.io-client";
 import {useParams} from "react-router-dom";
 import {
@@ -6,6 +6,7 @@ import {
     Card,
     CardContent,
     Chip,
+    InputAdornment,
     MuiThemeProvider,
     Slide,
     Slider,
@@ -81,10 +82,11 @@ function PlayerChip(props) {
     return <Chip style={props.style} size={"small"} {...props} label={props.label || getShortname(props.name)}/>
 }
 
+
 function PriceVolume(props) {
     const {
-        price, volume, sendIoc, partyOrderInfo, name, filledPercent, tickDecimals, onClick = () => {
-        }, cancelOrderById, hoverAble = true, background = 'transparent', backgroundWidth = 1
+        price, volume, sendIoc, partyOrderInfo, name, filledPercent, onClick = () => {
+        }, unitDetails, cancelOrderById, hoverAble = true, background = 'transparent', backgroundWidth = 1
     } = props;
     const paddingRight = 15;
     const [isShown, setIsShown] = useState(false);
@@ -122,7 +124,7 @@ function PriceVolume(props) {
                 )) : []}</div>
             <div style={{display: "flex", flex: 1.5, flexDirection: "row", justifyContent: "space-between"}}>
                 <div style={{justifyContent: "right", marginLeft: "auto", paddingRight}}>
-                    ${price.toFixed(tickDecimals)}
+                    {createUnit(price, unitDetails.tickDecimals, unitDetails)}
                 </div>
                 <div style={{justifyContent: "right", marginLeft: "auto", paddingRight}}>
                     {volume}
@@ -146,7 +148,7 @@ function Bid(props) {
         partyOrderInfo,
         yourFilledPercent,
         name,
-        tickDecimals
+        unitDetails
     } = props;
 
     return <PriceVolume  {...{
@@ -156,7 +158,7 @@ function Bid(props) {
         sendIoc: (price, volume) => sendIoc(price, -volume),
         name,
         onClick,
-        tickDecimals,
+        unitDetails,
         cancelOrderById,
         filledPercent: yourFilledPercent,
         background: themeOptions.palette.buy,
@@ -175,7 +177,7 @@ function Ask(props) {
         partyOrderInfo,
         yourFilledPercent,
         name,
-        tickDecimals
+        unitDetails,
     } = props;
 
     return <PriceVolume  {...{
@@ -185,7 +187,7 @@ function Ask(props) {
         sendIoc,
         name,
         onClick,
-        tickDecimals,
+        unitDetails,
         cancelOrderById,
         filledPercent: yourFilledPercent,
         background: themeOptions.palette.sell,
@@ -270,7 +272,7 @@ function OrderBook(props) {
         bids,
         asks,
         setActivePrice,
-        tickDecimals,
+        unitDetails,
         name,
         cancelOrderById,
         sendIoc,
@@ -316,7 +318,7 @@ function OrderBook(props) {
                 {aggregateOrders(asks)
                     .map((ask) => (
                         <Ask {...ask} name={name} key={ask.orderId} cancelOrderById={cancelOrderById}
-                             tickDecimals={tickDecimals} sendIoc={sendIoc}
+                             unitDetails={unitDetails} sendIoc={sendIoc}
                              backgroundWidth={ask.volume / totalAskVolume} onClick={() => setActivePrice(ask.price)}/>
                     ))}
             </div>
@@ -333,7 +335,7 @@ function OrderBook(props) {
             <div style={{display: "flex", height: "100%", flexDirection: "column-reverse", justifyContent: "flex-end"}}>
                 {aggregateOrders(bids).map((bid) => (
                     <Bid {...bid} name={name} key={bid.orderId} cancelOrderById={cancelOrderById}
-                         tickDecimals={tickDecimals} sendIoc={sendIoc}
+                         unitDetails={unitDetails} sendIoc={sendIoc}
                          backgroundWidth={bid.volume / totalBidVolume} onClick={() => setActivePrice(bid.price)}/>
                 ))}
 
@@ -349,6 +351,7 @@ function OrderWindow(props) {
     const {
         submitOrder,
         standingAskVol,
+        unitDetails,
         standingBidVol,
         yourPlayerData,
         socket,
@@ -382,13 +385,14 @@ function OrderWindow(props) {
             width: "100%",
             alignItems: 'center'
         }}>
-            <TextField type="number" label={"Price"} style={{width: 200}} value={price}
+            <TextField type="number" label={"Order"} style={{}} value={price}
+                       sx={{m: 1, width: '25ch'}}
+                       InputProps={{
+                           startAdornment: <InputAdornment style={{color: "rgba(255, 255, 255, 0.7)"}}
+                                                           position="start">{volume}@{unitDetails.unitPrefix}</InputAdornment>,
+                           endAdornment: <InputAdornment position="start">{unitDetails.unitSuffix}</InputAdornment>,
+                       }}
                        onChange={(e) => setPrice(e.target.value)}/>
-            <p style={{width: 200, fontSize: 17, marginTop: 10}}
-            >Volume {Math.abs(Number(volume))} </p>
-            {
-                // Was a buy sell slider for an attempt at a gradient, idk if still wanna try that
-            }
             <Slider
                 defaultValue={0}
                 step={1}
@@ -415,11 +419,11 @@ const maxPosition = 20
 
 function PricePoint(props) {
     const {price, volume} = props;
-    return <div>{volume}@${price}</div>
+    return <div>{volume}@{price}</div>
 }
 
 function Tick(newTick) {
-    const {price, volume, name, buyer, seller, bidWasAggressor, tickDecimals} = newTick
+    const {price, volume, name, buyer, seller, bidWasAggressor, unitDetails} = newTick
     const setOpacity = (hex, alpha) => `${hex}${Math.floor(alpha * 255).toString(16).padStart(2, 0)}`;
     return <div style={{
         display: "flex",
@@ -428,13 +432,13 @@ function Tick(newTick) {
     }}>
         <PlayerOrderChip partyOrderInfo={{name: buyer}} transparent={true} name={name}/>
         <div style={{display: "flex", flex: 0.7, justifyContent: "center", marginLeft: "auto", marginRight: "auto"}}>
-            <PricePoint price={price.toFixed(tickDecimals)} volume={volume}/></div>
+            <PricePoint price={createUnit(price, unitDetails.tickDecimals, unitDetails)} volume={volume}/></div>
         <PlayerOrderChip partyOrderInfo={{name: seller}} transparent={true} name={name}/>
     </div>
 }
 
 function TickBook(props) {
-    const {ticks, name, tickDecimals, hoverPlayer, playerClear} = props
+    const {ticks, name, unitDetails, hoverPlayer, playerClear} = props
     return <TradeDialog style={{display: "flex", flexDirection: "column", ...props.style}}>
         <CardContent>
             <h3>
@@ -448,7 +452,7 @@ function TickBook(props) {
                                buyer,
                                seller
                            }) => !hoverPlayer || buyer === hoverPlayer || seller === hoverPlayer).reverse().map((newTick) =>
-                <Tick key={newTick.tickId} {...newTick} tickDecimals={tickDecimals} name={name}/>)}
+                <Tick key={newTick.tickId} {...newTick} unitDetails={unitDetails} name={name}/>)}
         </div>
     </TradeDialog>;
 }
@@ -462,10 +466,14 @@ function safeDiv(n, d) {
 
 const fractionDigits = 2;
 
+function createUnit(value, decimals, {unitSuffix, unitPrefix}) {
+    return ((unitPrefix || "") + value.toFixed(decimals) + (unitSuffix || ""))
+}
+
 function Player(props: {}) {
-    const {playerData, position, name} = props
-    console.log("playerdata in player is ", props)
+    const {playerData, rank, name, unitDetails} = props
     const averagePrice = Math.abs(safeDiv(playerData.longPosition + playerData.shortPosition, playerData.totalLongVolume + playerData.totalShortVolume));
+    let delta = playerData.totalLongVolume - playerData.totalShortVolume;
     return <Card style={{
         width: 200,
         height: 150, ...(playerData.name === name ? {background: themeOptions.palette.primary.mainAccented} : {})
@@ -495,11 +503,11 @@ function Player(props: {}) {
             justifyContent: "center"
         }}>
             <span>
-                Position Δ{Math.round(playerData.totalLongVolume - playerData.totalShortVolume)}
+                Position {delta < 0 ? "-" : ""}Δ{Math.round(Math.abs(delta))}
                 <br/>
-                Avg. Price ${averagePrice.toFixed(fractionDigits)}
+                Avg. Price {createUnit(averagePrice, 2, unitDetails)}
                 <br/>
-                <span style={{fontSize: 20}}>#{position}</span>
+                <span style={{fontSize: 20}}>#{rank}</span>
 
             </span>
         </div>
@@ -507,7 +515,7 @@ function Player(props: {}) {
 }
 
 function PlayerDataDiag(props) {
-    const {playerData, name} = props
+    const {playerData, name, unitDetails} = props
     return <TradeDialog id={"style-1"} style={{overflow: "auto", padding: 10, ...props.style}}>
         <div style={{
             height: "auto", width: "100%",
@@ -517,7 +525,7 @@ function PlayerDataDiag(props) {
             justifyContent: "space-around"
         }}>
             {playerData.sort(({scrapeValue: scrapeValue1}, {scrapeValue: scrapeValue2}) => scrapeValue2 - scrapeValue1).map((playerData, i) => (
-                <Player playerData={playerData} position={i + 1} name={name}/>
+                <Player playerData={playerData} rank={i + 1} name={name} unitDetails={unitDetails} minScrapedValue/>
             ))}
         </div>
     </TradeDialog>;
@@ -567,13 +575,13 @@ function isExpired(expiredTimestamp) {
     return new Date() - expiredTimestamp > 0;
 }
 
-function MakePlayerResult({setHoverPlayer, hoverPlayer, playerData, index, final, biggestLoser}) {
+function MakePlayerResult({setHoverPlayer, hoverPlayer, playerData, index, final, biggestLoser, gameExposure}) {
     const [clicked, setClicked] = useState(false);
     let hover = hoverPlayer === playerData.name
     if (hoverPlayer !== playerData.name && clicked) {
         setClicked(false)
     }
-    const profit = safeDiv(playerData.rawProfit, Math.abs(biggestLoser));
+    const profit = safeDiv(playerData.rawProfit, Math.abs(biggestLoser)) * gameExposure;
     const averagePrice = Math.abs(safeDiv(playerData.longPosition + playerData.shortPosition, playerData.totalLongVolume + playerData.totalShortVolume));
     let background;
     if (hover) {
@@ -642,10 +650,11 @@ function MarketResults({
                            gameName,
                            gameMinutes,
                            expiryTimestamp,
+                           gameExposure,
                            name,
                            marketValue: actualMarketValue,
+                           unitDetails,
                            ticks,
-                           tickDecimals = 0.1
                        }) {
     const [inputtedMarketValue, setInputtedMarketValue] = useState("");
     const [hoverPlayer, setHoverPlayer] = useState("");
@@ -670,7 +679,8 @@ function MarketResults({
             {playerRow.map((p, rowIndex) => <MakePlayerResult hoverPlayer={hoverPlayer} setHoverPlayer={setHoverPlayer}
                                                               playerData={p} index={index++}
                                                               final={rowIndex === playerRow.length - 1}
-                                                              biggestLoser={biggestLoser}/>)}
+                                                              biggestLoser={biggestLoser}
+                                                              gameExposure={gameExposure}/>)}
         </div>
     )
 
@@ -686,12 +696,10 @@ function MarketResults({
         playerRows[playerRows.length - 1].push(playerData)
     })
 
-    return <div style={{display: "flex", flexDirection: "row", width: "100%"}}>
-        <div style={{flex: 1}}/>
-
-        <div style={{flex: 1}}>
+    return <div style={{display: "flex", flexDirection: "row", width: "100%", flexWrap: "wrap"}}>
+        <div style={{padding: 20, marginLeft: "auto"}}>
             <h2 style={{color: "white", marginTop: 20}}>Market over</h2>
-            <TradeDialog style={{padding: 15}}>
+            <TradeDialog style={{padding: 15, maxWidth: 350, marginTop: 20, marginRight: "auto", marginLeft: "auto"}}>
                 <CardTitle>
                     <h3>Market Had A Value Of {actualMarketValue}</h3>
                 </CardTitle>
@@ -704,18 +712,38 @@ function MarketResults({
             <CardContent style={{display: "flex", flexDirection: "column", justifyContent: "center"}}>
                 {playerRows.map(makePlayerRow)}
             </CardContent></div>
-        <div style={{flex: 1}}/>
         <TickBook {...{
-            ticks, name, tickDecimals, hoverPlayer, style: {flex: 1}, playerClear: () => {
+            unitDetails,
+            ticks,
+            name,
+            hoverPlayer,
+            style: {flexBasis: 300, marginTop: 20, marginRight: "auto", marginLeft: "auto"},
+            playerClear: () => {
                 setHoverPlayer()
             }
         }} />
     </div>;
 }
 
+function coerceToPrice(number, tickSize, tickDecimals) {
+    const closestMatch = Math.round(number / tickSize) * tickSize
+    if (Math.abs((closestMatch - number) / tickSize) >= 0.1) {
+        return [closestMatch, true];
+    }
+    return [Number(closestMatch.toFixed(tickDecimals)), false];
+}
+
+function getUrlFor(gameName) {
+    return encodeURIComponent(gameName
+        .replace(/[^\w\s]|_/g, '')
+        .replace(/\s+/g, '-')
+        .toLowerCase()
+        .replace(/[^0-9a-z\-]/gi, ''));
+}
+
 const Market = (props) => {
     const {gameId} = useParams();
-    const {height, width, replayData} = props;
+    const {replayData} = props;
     const [socket] = useState(() => io(`/ws`, {
 //        transports: ['websocket'],
         withCredentials: true,
@@ -731,70 +759,23 @@ const Market = (props) => {
     const [bids, setBids] = useState([])
     const [asks, setAsks] = useState([])
     const [marketOver, setMarketOver] = useState(false)
-    // const [stockData, setStockData] = useState([{
-    //     x: new Date(1538874000000),
-    //     y: [6600.55, 6605, 6589.14, 6593.01]
-    // },
-    //     {
-    //         x: new Date(1538875800000),
-    //         y: [6593.15, 6605, 6592, 6603.06]
-    //     },
-    //     {
-    //         x: new Date(1538877600000),
-    //         y: [6603.07, 6604.5, 6599.09, 6603.89]
-    //     },
-    //     {
-    //         x: new Date(1538879400000),
-    //         y: [6604.44, 6604.44, 6600, 6603.5]
-    //     },
-    //     {
-    //         x: new Date(1538881200000),
-    //         y: [6603.5, 6603.99, 6597.5, 6603.86]
-    //     },
-    //     {
-    //         x: new Date(1538883000000),
-    //         y: [6603.85, 6605, 6600, 6604.07]
-    //     },
-    //     {
-    //         x: new Date(1538884800000),
-    //         y: [6604.98, 6606, 6604.07, 6606]
-    //     },
-    // ]);
-    const timeInterval = 1538884800000 - 1538883000000
-    useEffect(() => {
-        /*
-        setInterval(()=>{
-            time += timeInterval
-            currprice = ((Math.random() * 0.1) + 0.951) * currprice
-            let high = currprice * ((Math.random() * 0.07) + 1)
-            let low = currprice * (1 - (Math.random() * 0.07))
-            let close = currprice * (Math.random() * 0.1 + 0.95)
-            setTicks((ticks)=>[...ticks, {timestamp:new Date().getTime(), price:currprice, bidWasAggressor:true,
-                buyer:"bot-1", seller:"bot-2"}])
-            setStockData((sd) => [...sd.slice(Math.max(sd.length - 80, 0)), {
-                x: new Date(time),
-                y : [currprice, high, low, close]
-            }])
-        },3000)*/
-    }, [])
-
     const [myOutstandingOrders, setMyOutStandingOrders] = useState([])
-    console.log("My outstanding orders", myOutstandingOrders)
     const [ticks, setTicks] = useState([])
     const [playerData, setPlayerData] = useState({})
     const [expiryTimestamp, setExpiryTimestamp] = useState()
     const [gameName, setGameName] = useState()
     const [gameMinutes, setGameMinutes] = useState()
-    const [tickSize, setTickSize] = useState()
-    const [tickDecimals, setTickDecimals] = useState(0)
     const [finalPlayerData, setFinalPlayerData] = useState()
     const [marketValue, setMarketValue] = useState()
     const [finalTicks, setFinalTicks] = useState()
+    const [unitDetails, setUnitDetails] = useState({})
+    const [gameExposure, setGameExposure] = useState()
+
     const stockData = useMemo(() => {
         const timeInterval = 60 * 1000;
         const intervals = []
         let currInterval = undefined;
-        const roundTime = (time) => Math.ceil(time / timeInterval) + timeInterval
+        const roundTime = (time) => Math.ceil(time / timeInterval) * timeInterval
         const finishInterval = (timeWindow) => {
             const {prices} = timeWindow;
             timeWindow.high = Math.max(...prices)
@@ -826,10 +807,9 @@ const Market = (props) => {
         //     x: new Date(1538874000000),
         //     y: [6600.55, 6605, 6589.14, 6593.01]
         let data1 = intervals.map(({timeWindow, open, high, low, close}) => ({
-            x: timeWindow * timeInterval,
+            x: timeWindow,
             y: [open, high, low, close]
         }));
-        console.log("new intervals are", data1)
         return data1
     }, [ticks])
 
@@ -838,7 +818,6 @@ const Market = (props) => {
             setInfo(message)
         },
         'gameJoin': ({name: party}) => {
-            console.log('joined', parties, party);
             setParties((parties) => [...parties, party])
         },
         'erroneousAction': ({message}) => {
@@ -849,7 +828,25 @@ const Market = (props) => {
                 setName(playerData.name)
             }
         },
-        'gameView': ({gameName, gameMinutes, parties, expiryTimestamp, finalPlayerData, finalTicks, marketValue}) => {
+        'gameView': ({
+                         gameName,
+                         gameMinutes,
+                         parties,
+                         expiryTimestamp,
+                         finalPlayerData,
+                         finalTicks,
+                         marketValue,
+                         tickDecimals,
+                         unitPrefix,
+                         unitSuffix,
+                         tickSize,
+                         gameExposure
+                     }) => {
+            if (!replayData) {
+                document.title = "Market - " + gameName
+                let title = getUrlFor(gameName).substring(0, 30);
+                window.history.replaceState(null, title, "/game/" + gameId + "/" + title)
+            }
             setParties(parties)
             setGameName(gameName)
             setGameMinutes(gameMinutes)
@@ -858,16 +855,16 @@ const Market = (props) => {
             setFinalPlayerData(finalPlayerData)
             setMarketValue(Number(marketValue))
             setFinalTicks(finalTicks)
+            setUnitDetails({unitSuffix, unitPrefix, tickSize: Number(tickSize), tickDecimals: Number(tickDecimals)})
+            setGameExposure(gameExposure)//a
         }, 'playerDataUpdate': (updatedPlayerData) => {
             setPlayerData((playerData) => {
                 let playerDataCopy = {...playerData};
                 playerDataCopy[updatedPlayerData.name] = updatedPlayerData;
-                console.log("new player data is ", playerDataCopy)
                 return playerDataCopy;
             })
         }, 'onTick': (newTick) => {
             setTicks((ticks) => {
-                    console.log("ticks are", ticks);
                     return [...ticks, newTick]
                 }
             )
@@ -876,15 +873,9 @@ const Market = (props) => {
 
     const onJoinedHandlers = {
         'orderInsert': (order) => {
-            console.log("order came in ", order)
-            /*if (seenTransaction(order)) {
-                // AAAAAAHa
-                return;
-            }*/
             const orderAddFunction = (orders) => {
                 const newOrders = [...orders, order]
                 newOrders.sort(orderSortFunction);
-                console.log("after insert, ", orders)
                 return newOrders;
             }
 
@@ -921,20 +912,16 @@ const Market = (props) => {
             setParties(parties)
             setBids(bids.reverse())
             setAsks(asks)
-            setTickSize(Number(tickSize))
             setMyOutStandingOrders((orders) => {
                 return [...orders, ...bids.filter((bid) => bid.name === name), ...asks.filter((ask) => ask.name === name)]
             })
             setGameName(gameName)
             setGameMinutes(gameMinutes)
             setTicks(ticks)
-            setTickDecimals(tickDecimals)
             setPlayerData((oldPlayerData) => {
                 let playerDataCopy = {...playerData, ...oldPlayerData};
-                console.log("new player data is ", playerDataCopy)
                 return playerDataCopy;
             })
-            console.log('state set');
         },
         'orderUpdate': (newOrder) => {
             const orderAddFunction = ((orders) => {
@@ -961,7 +948,6 @@ const Market = (props) => {
                         break;
                     }
                 }
-                console.log("orders after update ", retOrders)
                 return retOrders;
             })
 
@@ -984,7 +970,6 @@ const Market = (props) => {
                 const [event, data] = replayData[i]
                 onJoinedHandlers[event]?.(data)
                 marketEventHandlers[event]?.(data)
-                console.log("emitting ", event, data)
                 i++
             }, 700)
 
@@ -1014,9 +999,14 @@ const Market = (props) => {
         if (volume === 0 || price === 0) {
             return;
         }
+        const [coercedPrice, tooFar] = coerceToPrice(price, unitDetails.tickSize, unitDetails.tickDecimals);
+        if (tooFar) {
+            setInfo("Order price has been coerced to tick size, submit new price?")
+            setPrice(coercedPrice)
+            return;
+        }
         const isBid = volume > 0
         const order = {unsanitizedPrice: price, unsanitizedVolume: isBid ? volume : -volume, isBid, orderType};
-        console.log("submitting order", order)
         socket.emit('insertOrder', order);
     }
 
@@ -1050,39 +1040,21 @@ const Market = (props) => {
     const placeDimeBid = () => {
         //todo really simple, if yours just add to it instead of diming
         const {price} = bids[bids.length - 1]
-        submitOrder(Number(price) + tickSize, 1, "dime")
+        submitOrder(Number(price) + unitDetails.tickSize, 1, "dime")
     }
 
     const placeDimeAsk = () => {
         const {price} = asks[0]
-        submitOrder(Number(price) - tickSize, -1, "dime")
+        submitOrder(Number(price) - unitDetails.tickSize, -1, "dime")
     }
 
     const pullOrders = () => {
-        console.log("pull orders requested")
         socket.emit("pullOrders")
     }
 
+    // const exampleMarketData = [{date: new Date().getTime(), open: 3, high: 5, low: 2, close: 2},
+    //     {date: new Date().getTime(), open: 3, high: 5, low: 2, close: 2}]
 
-    const JoinedMarket = useCallback(() => {
-
-        /*const Order = ({price,volume}) => {
-            return <div style={{display:"flex", flexDirection:'row', background:"white"}}><h3>Price: {price} Volume: {volume}</h3></div>
-        }
-        const OutstandingOrders = () => {
-            return <></>
-            return <TradeDialog style={{background:themeOptions.palette.secondary.dark, width:'100%', height:50, flex:1}}>
-                <CardContent>
-                    <h3>
-                        Outstanding Orders
-                    </h3>
-                    {myOutstandingOrders.map((order) => Order(order))}
-                </CardContent>
-            </TradeDialog>
-        }*/
-    })
-    const exampleMarketData = [{date: new Date().getTime(), open: 3, high: 5, low: 2, close: 2},
-        {date: new Date().getTime(), open: 3, high: 5, low: 2, close: 2}]
     const errorContainer = useRef(null)
     const halfMargin = 5;
     const onMarketEnd = () => {
@@ -1109,10 +1081,11 @@ const Market = (props) => {
             {
                 marketOver ? <MarketResults finalPlayerData={finalPlayerData}
                                             ticks={finalTicks}
-                                            tickDecimals={tickDecimals}
+                                            unitDetails={unitDetails}
                                             gameName={gameName}
                                             gameMinutes={gameMinutes}
                                             expiryTimestamp={expiryTimestamp}
+                                            gameExposure={gameExposure}
                                             marketValue={marketValue}
                                             name={name}/> : !joined ?
                     <TradeDialog style={{
@@ -1149,7 +1122,8 @@ const Market = (props) => {
                                 <PlayerChip name={name}/>
                             ))}
                         </div>
-                        <TextField value={name} style={{marginTop: 30}} onChange={(val) => setName(val.target.value)}
+                        <TextField value={name} style={{marginTop: 30}}
+                                   onChange={(val) => setName(val.target.value.toUpperCase())}
                                    label={`Joining market as`}/>
                         {
                             name ? <>
@@ -1171,7 +1145,13 @@ const Market = (props) => {
 
                     </TradeDialog>
                     :
-                    <div style={{width: "100%", height: "100%", display: "flex", flexDirection: "column"}}>
+                    <div style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        background: themeOptions.palette.background.default
+                    }}>
                         <div style={{height: halfMargin}}/>
                         <div style={{
                             display: "flex",
@@ -1220,7 +1200,8 @@ const Market = (props) => {
                                     }]} type="candlestick"/>
                                     </div>
                                 </div>
-                                <PlayerDataDiag style={{}} playerData={Object.values(playerData)} name={name}/>
+                                <PlayerDataDiag style={{}} playerData={Object.values(playerData)} name={name}
+                                                unitDetails={unitDetails} gameExposure={gameExposure}/>
                             </div>
                             <div style={{
                                 display: "flex",
@@ -1233,11 +1214,11 @@ const Market = (props) => {
                                 <OrderBook {...{
                                     bids,
                                     asks,
-                                    tickDecimals,
                                     name,
                                     sendIoc,
                                     socket,
                                     cancelOrderById,
+                                    unitDetails,
                                     placeDimeBid,
                                     placeDimeAsk,
                                     pullOrders,
@@ -1249,6 +1230,7 @@ const Market = (props) => {
                                 {expiryTimestamp !== undefined ?
                                     <MarketTimer onExpire={onMarketEnd} expiryTimestamp={expiryTimestamp}/> : undefined}
                                 <OrderWindow {...{
+                                    unitDetails,
                                     price,
                                     setPrice,
                                     name,
@@ -1256,15 +1238,20 @@ const Market = (props) => {
                                     standingBidVol,
                                     yourPlayerData,
                                     submitOrder,
-                                    style: {flex: 1, display: "flex", flexDirection: "column", alignItems: "center"}
+                                    style: {
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: "center",
+                                        marginTop: halfMargin * 2
+                                    }
                                 }} />
                             </div>
-                            <TickBook ticks={ticks} tickDecimals={tickDecimals} name={name} style={{
+                            <TickBook ticks={ticks} name={name} style={{
                                 background: themeOptions.palette.secondary.dark,
                                 height: "inherit",
                                 flex: 0.5,
                                 flexBasis: 120, ...lrMargins
-                            }}/>
+                            }} unitDetails={unitDetails}/>
                         </div>
                         <div style={{height: halfMargin}}/>
 

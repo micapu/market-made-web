@@ -1,6 +1,18 @@
 
 export const ExampleGameData1 = [
-    ["gameState",{"gameName":"Example Game","gameMinutes":5,"gameId":0,"parties":[],"playerData":{},"bids":[],"asks":[],"ticks":[],"transactionId":1,"ackTimestamp":1637721063820}]
+    ["gameView", {unitSuffix: "", unitPrefix: "$", tickSize: 0.1, tickDecimals: 1, ackTimestamp: 1637721063820}],
+    ["gameState", {
+        "gameName": "Example Game",
+        "gameMinutes": 5,
+        "gameId": 0,
+        "parties": [],
+        "playerData": {},
+        "bids": [],
+        "asks": [],
+        "ticks": [],
+        "transactionId": 1,
+        "ackTimestamp": 1637721063820
+    }]
     , ["gameJoin", {"name": "asd"}]
     , ["playerDataUpdate", {
         "name": "asd",
