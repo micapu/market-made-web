@@ -1,10 +1,11 @@
-import { createMuiTheme } from '@material-ui/core';
+import {createMuiTheme} from '@material-ui/core';
 
 export const themeOptions = createMuiTheme({
     palette: {
         type: 'dark',
         primary: {
             main: '#0ecc8d',
+            mainAccented: '#0a7150',
             dark: '#42f9d1',
             light: '#12946c',
         },
@@ -16,7 +17,11 @@ export const themeOptions = createMuiTheme({
         background: {
             default: '#01081e',
         },
-        sell:"#ff2727",
-        buy:"#61ff27"
+        error: {
+            main: "#ff0000",
+            accented: "#8d3b3b"
+        },
+        sell: "#ff2727",
+        buy: "#61ff27"
     },
 });
