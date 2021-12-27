@@ -29,7 +29,7 @@ function HomeScreen(props) {
     const [gameExposure, setGameExposure] = useState("5")
     const [exampleShow, setExampleShow] = useState(false)
     document.title = "Market? Made."
-
+    const marketRef = useRef()
     const submitNewGame = () => {
         const requestOptions = {
             method: 'POST',
@@ -39,7 +39,7 @@ function HomeScreen(props) {
         fetch(`/api/game/`, requestOptions)
             .then(data => {
                 console.log(data)
-                    if (data.status === 200) {
+                if (data.status === 200) {
                         data.json().then(({gameId}) =>
                             props.history.push(`/game/${gameId}`)
                         )
@@ -83,7 +83,14 @@ function HomeScreen(props) {
             background: "url(https://www.marketplace.org/wp-content/uploads/2021/10/stockmarket.jpg)",
             flexWrap: "wrap", overflowX: "hidden"
         }} ref={mainContentContainer}>
-            <div style={{display: "flex", flexDirection: "column", flex: 1, height: '100%', width: "100%"}}>
+            <div style={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+                height: '100%',
+                width: "100%",
+                flexBasis: 330
+            }}>
                 <Jumbotron style={{color: "white", width: '100%', height: 200}}>
                     <div style={{flex: 1, display: "flex", height: 100}}/>
                     <Container fluid style={{
@@ -235,15 +242,18 @@ function HomeScreen(props) {
                             <Button style={{color: "white", marginTop: "50px", minHeight: 35}} variant="contained"
                                     color={"secondary"}
                                     onClick={() => {
-                                        setExampleShow(true)
+                                        setExampleShow(true, () => marketRef.current.scrollIntoView({behavior: "smooth"})
+                                        )
                                     }}> Show An Example Game </Button>}
                         <div style={{minHeight: 30}}></div>
                     </div>
                 }
             </div>
             <Slide direction="left" in={exampleShow} container={mainContentContainer.current}>
-                {<div style={{flex: 1, height: "100%", display: exampleShow ? "block" : "none"}}> {exampleShow ? <Market
-                    replayData={ExampleGameData1}/> : null} </div>}
+                {<div style={{flex: 3, height: "100%", display: exampleShow ? "flex" : "none"}}>
+                    <div style={{flex: 1}} ref={marketRef} class={"conditional-padding"}> {exampleShow ? <Market
+                        replayData={ExampleGameData1}/> : null} </div>
+                </div>}
             </Slide>
         </div>
     </AlertProvider>
