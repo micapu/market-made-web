@@ -10,6 +10,7 @@ import {CardTitle, Container, Jumbotron} from 'reactstrap';
 import {Provider as AlertProvider} from 'react-alert'
 import AlertTemplate from 'react-alert-template-basic'
 import {ExampleGameData1} from "./DemoGames";
+import GetUUID from "./GetUUID";
 
 let textSequence = 0;
 
@@ -27,14 +28,25 @@ function HomeScreen(props) {
     const [unitSuffix, setUnitSuffix] = useState("")
     const [tickSize, setTickSize] = useState("0.1")
     const [gameExposure, setGameExposure] = useState("5")
+    const [exposureCurrency, setExposureCurrency] = useState("€")
     const [exampleShow, setExampleShow] = useState(false)
-    document.title = "Market? Made."
+
     const marketRef = useRef()
     const submitNewGame = () => {
         const requestOptions = {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({gameName, gameMinutes, marketValue, tickSize, unitSuffix, unitPrefix, gameExposure})
+            body: JSON.stringify({
+                gameName,
+                gameMinutes,
+                marketValue,
+                tickSize,
+                unitSuffix,
+                unitPrefix,
+                gameExposure,
+                exposureCurrency,
+                token: GetUUID()
+            })
         };
         fetch(`/api/game/`, requestOptions)
             .then(data => {
@@ -44,13 +56,15 @@ function HomeScreen(props) {
                             props.history.push(`/game/${gameId}`)
                         )
                     } else if (data.status === 400) {
-                        data.json().then(({errorMessage}) => setErrorMessage(errorMessage));
-                    }
+                    data.json().then(({errorMessage}) => {
+                        setErrorMessage(errorMessage)
+                    });
+                }
                 }
             );
     }
     useEffect(() => {
-
+        document.title = "Market? Made."
         setInterval(() => {
             const marketTexts = ["windows in new york",
                 "humans who have ever lived",
@@ -140,7 +154,7 @@ function HomeScreen(props) {
                                            onChange={(val) => setGameName(val.target.value)}
                                            label="Market on"/>
 
-                                <TextField style={{marginTop: marginTopTextFields, minHeight: "3em"}}
+                                <TextField style={{marginTop: marginTopTextFields, minHeight: "3em", flex: 1}}
                                            value={marketValue} type="number"
                                            onChange={(val) => setMarketValue(val.target.value)}
                                            sx={{m: 1, width: '25ch'}}
@@ -150,8 +164,7 @@ function HomeScreen(props) {
                                                endAdornment: <InputAdornment
                                                    position="start">{unitSuffix}</InputAdornment>,
                                            }}
-
-                                           label="Value of the market"/>
+                                           label="Value of the market (Can be set at end)"/>
 
                                 <div style={{
                                     display: "block",
@@ -161,17 +174,23 @@ function HomeScreen(props) {
                                     height: "max-content"
 
                                 }}>
+                                    <TextField value={exposureCurrency}
+                                               onChange={(val) => setExposureCurrency(val.target.value.substr(0, 1))}
+                                               type="text"
+                                               style={{width: "3em", marginRight: 10, minHeight: "3em"}}
+                                               label="Currency"/>
+
                                     <TextField value={gameExposure}
 
                                                onChange={(val) => setGameExposure(val.target.value)}
                                                type="number"
                                                sx={{m: 1, width: '25ch'}}
                                                InputProps={{
-                                                   startAdornment: <InputAdornment position="start">£</InputAdornment>,
+                                                   startAdornment: <InputAdornment
+                                                       position="start">{exposureCurrency}</InputAdornment>,
                                                }}
                                                style={{width: 200, marginRight: 10, minHeight: "3em"}}
-                                               label="Exposure">
-                                    </TextField>
+                                               label="Exposure"/>
                                     <TextField value={gameMinutes}
 
                                                onChange={(val) => setGameMinutes(val.target.value)}
@@ -237,7 +256,7 @@ function HomeScreen(props) {
                                 color={"primary"}
                                 onClick={() => {
                                     setCreateGame(true)
-                                }}> Create A Market </Button>
+                                }}> Start A Market </Button>
                         {exampleShow ? undefined :
                             <Button style={{color: "white", marginTop: "50px", minHeight: 35}} variant="contained"
                                     color={"secondary"}
@@ -245,7 +264,7 @@ function HomeScreen(props) {
                                         setExampleShow(true, () => marketRef.current.scrollIntoView({behavior: "smooth"})
                                         )
                                     }}> Show An Example Game </Button>}
-                        <div style={{minHeight: 30}}></div>
+                        <div style={{minHeight: 30}}/>
                     </div>
                 }
             </div>

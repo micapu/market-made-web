@@ -20,7 +20,7 @@ export const ExampleGameData1 = [
         "shortPosition": 0,
         "totalOutstandingLongVolume": 0,
         "totalOutstandingShortVolume": 0,
-        "scrapeProfit": 0,
+        "scalpProfit": 0,
         "totalLongVolume": 0,
         "totalShortVolume": 0,
         "bidTicks": [],
@@ -35,7 +35,7 @@ export const ExampleGameData1 = [
         "shortPosition": 0,
         "totalOutstandingLongVolume": 0,
         "totalOutstandingShortVolume": 0,
-        "scrapeProfit": 0,
+        "scalpProfit": 0,
         "totalLongVolume": 0,
         "totalShortVolume": 0,
         "bidTicks": [],
@@ -114,14 +114,14 @@ export const ExampleGameData1 = [
         "shortPosition": 0,
         "totalOutstandingLongVolume": -4,
         "totalOutstandingShortVolume": 0,
-        "scrapeProfit": 0,
+        "scalpProfit": 0,
         "totalLongVolume": 4,
         "totalShortVolume": 0,
         "bidTicks": [{"price": 2, "volume": 4}],
         "askTicks": [],
         "transactionId": 10,
         "ackTimestamp": 1637721084709,
-        "scrapeValue": 0
+        "scalpValue": 0
     }]
     , ["playerDataUpdate", {
         "name": "asd",
@@ -129,14 +129,14 @@ export const ExampleGameData1 = [
         "shortPosition": 8,
         "totalOutstandingLongVolume": 0,
         "totalOutstandingShortVolume": -4,
-        "scrapeProfit": 0,
+        "scalpProfit": 0,
         "totalLongVolume": 0,
         "totalShortVolume": 4,
         "bidTicks": [],
         "askTicks": [{"price": 2, "volume": 4}],
         "transactionId": 11,
         "ackTimestamp": 1637721084710,
-        "scrapeValue": 0
+        "scalpValue": 0
     }]
     , ["orderUpdate", {
         "price": 2,
@@ -165,14 +165,14 @@ export const ExampleGameData1 = [
         "shortPosition": 0,
         "totalOutstandingLongVolume": -8,
         "totalOutstandingShortVolume": 0,
-        "scrapeProfit": 0,
+        "scalpProfit": 0,
         "totalLongVolume": 8,
         "totalShortVolume": 0,
         "bidTicks": [{"price": 2, "volume": 4}, {"price": 2, "volume": 4}],
         "askTicks": [],
         "transactionId": 14,
         "ackTimestamp": 1637721092681,
-        "scrapeValue": 0
+        "scalpValue": 0
     }]
     , ["playerDataUpdate", {
         "name": "asd",
@@ -180,14 +180,14 @@ export const ExampleGameData1 = [
         "shortPosition": 16,
         "totalOutstandingLongVolume": 0,
         "totalOutstandingShortVolume": -8,
-        "scrapeProfit": 0,
+        "scalpProfit": 0,
         "totalLongVolume": 0,
         "totalShortVolume": 8,
         "bidTicks": [],
         "askTicks": [{"price": 2, "volume": 4}, {"price": 2, "volume": 4}],
         "transactionId": 15,
         "ackTimestamp": 1637721092682,
-        "scrapeValue": 0
+        "scalpValue": 0
     }]
     , ["orderUpdate", {
         "price": 2,
@@ -216,14 +216,14 @@ export const ExampleGameData1 = [
         "shortPosition": 0,
         "totalOutstandingLongVolume": -10,
         "totalOutstandingShortVolume": 0,
-        "scrapeProfit": 0,
+        "scalpProfit": 0,
         "totalLongVolume": 10,
         "totalShortVolume": 0,
         "bidTicks": [{"price": 2, "volume": 4}, {"price": 2, "volume": 4}, {"price": 2, "volume": 2}],
         "askTicks": [],
         "transactionId": 18,
         "ackTimestamp": 1637721092870,
-        "scrapeValue": 0
+        "scalpValue": 0
     }]
     , ["playerDataUpdate", {
         "name": "asd",
@@ -231,14 +231,14 @@ export const ExampleGameData1 = [
         "shortPosition": 20,
         "totalOutstandingLongVolume": 0,
         "totalOutstandingShortVolume": -10,
-        "scrapeProfit": 0,
+        "scalpProfit": 0,
         "totalLongVolume": 0,
         "totalShortVolume": 10,
         "bidTicks": [],
         "askTicks": [{"price": 2, "volume": 4}, {"price": 2, "volume": 4}, {"price": 2, "volume": 2}],
         "transactionId": 19,
         "ackTimestamp": 1637721092871,
-        "scrapeValue": 0
+        "scalpValue": 0
     }]
     , ["orderUpdate", {
         "price": 2,
@@ -289,7 +289,7 @@ export const ExampleGameData1 = [
         "shortPosition": 0,
         "totalOutstandingLongVolume": -12,
         "totalOutstandingShortVolume": 0,
-        "scrapeProfit": 0,
+        "scalpProfit": 0,
         "totalLongVolume": 12,
         "totalShortVolume": 0,
         "bidTicks": [{"price": 2, "volume": 4}, {"price": 2, "volume": 4}, {"price": 2, "volume": 2}, {
@@ -299,7 +299,7 @@ export const ExampleGameData1 = [
         "askTicks": [],
         "transactionId": 24,
         "ackTimestamp": 1637721108549,
-        "scrapeValue": 0
+        "scalpValue": 0
     }]
     , ["playerDataUpdate", {
         "name": "asd",
@@ -307,7 +307,7 @@ export const ExampleGameData1 = [
         "shortPosition": 24,
         "totalOutstandingLongVolume": 0,
         "totalOutstandingShortVolume": -12,
-        "scrapeProfit": 0,
+        "scalpProfit": 0,
         "totalLongVolume": 0,
         "totalShortVolume": 12,
         "bidTicks": [],
@@ -317,7 +317,7 @@ export const ExampleGameData1 = [
         }],
         "transactionId": 25,
         "ackTimestamp": 1637721108550,
-        "scrapeValue": 0
+        "scalpValue": 0
     }]
     , ["orderUpdate", {
         "price": 2,

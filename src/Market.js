@@ -26,6 +26,7 @@ import {Alert} from "@mui/material";
 import AssignmentIcon from '@material-ui/icons/Assignment';
 import HomeIcon from '@material-ui/icons/Home';
 import AssignmentTurnedInIcon from '@material-ui/icons/AssignmentTurnedIn';
+import GetUUID from "./GetUUID";
 
 
 const BuySellSlider = withStyles({
@@ -305,11 +306,9 @@ function OrderBook(props) {
             position: "relative",
             overflow: "hidden",
             flexDirection: "column",
-            maxHeight: "40%",
             marginTop: "auto",
             flex: 1
         }}>
-            <div style={{flex: 1}}/>
             <div style={{
                 display: "flex",
                 position: "absolute",
@@ -335,7 +334,7 @@ function OrderBook(props) {
             bidsExist,
             asksExist
         }}/>
-        <div style={{marginBottom: "auto", overflow: "hidden", flex: 1}}>
+        <div style={{marginBottom: "auto", flex: 1, display: "flex", flexDirection: "column", overflow: "hidden"}}>
             <div style={{display: "flex", height: "100%", flexDirection: "column-reverse", justifyContent: "flex-end"}}>
                 {aggregateOrders(bids).map((bid) => (
                     <Bid {...bid} name={name} key={bid.orderId} cancelOrderById={cancelOrderById}
@@ -344,7 +343,6 @@ function OrderBook(props) {
                 ))}
 
             </div>
-            <div style={{flex: 1}}/>
 
         </div>
         <OrderBookHeaders/>
@@ -366,8 +364,8 @@ function OrderWindow(props) {
 
     const [volume, setVolume] = useState(0);
 
-    const isBid = () => volume > 0;
-
+    const isBid = volume > 0;
+    const hasVol = volume !== 0
     const yourPosition = yourPlayerData ? yourPlayerData.totalLongVolume - yourPlayerData.totalShortVolume : 0
 
     const maxSell = -maxPosition + standingAskVol - yourPosition
@@ -384,7 +382,7 @@ function OrderWindow(props) {
         <div style={{
             display: "flex",
             flexDirection: 'column',
-            height: 240,
+            height: 200,
             padding: 30,
             width: "100%",
             alignItems: 'center'
@@ -408,12 +406,14 @@ function OrderWindow(props) {
                 onChange={(event, newValue) => setVolume(newValue)}>
             </Slider>
             <Button variant="contained" color={"primary"} style={{
-                marginBottom: 20, ...(isBid() ? {} : {
+                width: "13em",
+                marginBottom: 20, ...(isBid ? {} : {
                     backgroundColor: themeOptions.palette.sell,
                     color: "white"
                 })
-            }} onClick={() => submitOrder(price, volume, "limit")}>
-                Place {isBid() ? "Bid" : "Offer"}
+
+            }} disabled={!hasVol} onClick={() => submitOrder(price, volume, "limit")}>
+                {hasVol ? (isBid ? "Place Bid" : "Place Offer") : "Select Volume"}
             </Button>
         </div>
     </TradeDialog>
@@ -492,10 +492,10 @@ function Player(props: {}) {
             width: "100%",
             justifyContent: "center"
         }}>
-            <span>${Math.abs(playerData.scrapeValue).toFixed(2)}</span>
+            <span>${Math.abs(playerData.scalpValue).toFixed(2)}</span>
             <img
                 style={{display: "inline-block", height: 17, width: 17, marginTop: 2}}
-                src={playerData.scrapeValue > 0 ?
+                src={playerData.scalpValue > 0 ?
                     "https://img.icons8.com/ios-glyphs/100/26e07f/sort-up.png" :
                     "https://img.icons8.com/ios-glyphs/100/26e07f/sort-down.png"}/>
         </div>
@@ -519,7 +519,7 @@ function Player(props: {}) {
 }
 
 function PlayerDataDiag(props) {
-    const {playerData, name, unitDetails} = props
+    const {playerData, name, unitDetails, exposureDetails} = props
     return <TradeDialog id={"style-1"} style={{overflow: "auto", padding: 10, ...props.style}}>
         <div style={{
             height: "auto", width: "100%",
@@ -528,8 +528,8 @@ function PlayerDataDiag(props) {
             maxHeight: "300px",
             justifyContent: "space-around"
         }}>
-            {playerData.sort(({scrapeValue: scrapeValue1}, {scrapeValue: scrapeValue2}) => scrapeValue2 - scrapeValue1).map((playerData, i) => (
-                <Player playerData={playerData} rank={i + 1} name={name} unitDetails={unitDetails} minScrapedValue/>
+            {playerData.sort(({scalpValue: scalpValue1}, {scalpValue: scalpValue2}) => scalpValue2 - scalpValue1).map((playerData, i) => (
+                <Player playerData={playerData} rank={i + 1} name={name} unitDetails={unitDetails} minScalpedValue/>
             ))}
         </div>
     </TradeDialog>;
@@ -556,6 +556,11 @@ function MarketTimer({expiryTimestamp, fontSize = 25, shortenText = false, onExp
         resume,
         restart,
     } = useTimer({expiryTimestamp, onExpire});
+
+    if (expiryTimestamp === null) {
+        return <h2 style={{color: "white"}}>Waiting For Start</h2>
+    }
+
     let marketOver = new Date(expiryTimestamp) < new Date()
     let color = minutes === 0 && hours === 0 && days === 0 && !marketOver ? (seconds % 3 === 0 ? "red" : "white") : "white"
     const digitSpan = (digit, suffix) => (
@@ -582,10 +587,18 @@ function MarketTimer({expiryTimestamp, fontSize = 25, shortenText = false, onExp
 }
 
 function isExpired(expiredTimestamp) {
-    return new Date() - expiredTimestamp > 0;
+    return expiredTimestamp && new Date() - expiredTimestamp > 0;
 }
 
-function MakePlayerResult({setHoverPlayer, hoverPlayer, playerData, index, final, biggestLoser, gameExposure}) {
+function MakePlayerResult({
+                              setHoverPlayer,
+                              hoverPlayer,
+                              playerData,
+                              index,
+                              final,
+                              biggestLoser,
+                              exposureDetails: {gameExposure, exposureCurrency}
+                          }) {
     const [clicked, setClicked] = useState(false);
     let hover = hoverPlayer === playerData.name
     if (hoverPlayer !== playerData.name && clicked) {
@@ -629,7 +642,7 @@ function MakePlayerResult({setHoverPlayer, hoverPlayer, playerData, index, final
                 width: "100%",
                 justifyContent: "center"
             }}>
-                <span>${profit.toFixed(2)}</span>
+                <span>{exposureCurrency}{profit.toFixed(2)}</span>
                 <img
                     style={{display: "inline-block", height: 17, width: 17, marginTop: 2}}
                     src={playerData.rawProfit > 0 ?
@@ -660,21 +673,27 @@ function MarketResults({
                            gameName,
                            gameMinutes,
                            expiryTimestamp,
-                           gameExposure,
+                           imHost,
+                           exposureDetails,
                            name,
+                           submitMarketValue,
                            marketValue: actualMarketValue,
                            unitDetails,
                            ticks,
                        }) {
     const [inputtedMarketValue, setInputtedMarketValue] = useState("");
     const [hoverPlayer, setHoverPlayer] = useState("");
-    let marketValue = inputtedMarketValue || actualMarketValue
-    marketValue = Number(marketValue)
-    if (!(finalPlayerData && actualMarketValue && ticks)) {
+
+    let marketValue = inputtedMarketValue !== '' ? Number(inputtedMarketValue) : actualMarketValue
+    if (actualMarketValue !== null) {
+        actualMarketValue = Number(actualMarketValue)
+    }
+    if (!(finalPlayerData && ticks && exposureDetails)) {
         return <h1> Loading... </h1>
     }
 
     let biggestLoser = Number.POSITIVE_INFINITY
+
     Object.values(finalPlayerData).forEach(playerData => {
         let rawProfitFromBuys = (marketValue * playerData.totalLongVolume) - playerData.longPosition
         let rawProfitFromSells = playerData.shortPosition - (marketValue * playerData.totalShortVolume)
@@ -686,11 +705,12 @@ function MarketResults({
     let index = 0;
     const makePlayerRow = (playerRow) => (
         <div style={{display: "flex", flexDirection: "row", justifyContent: "center", marginTop: 10}}>
-            {playerRow.map((p, rowIndex) => <MakePlayerResult hoverPlayer={hoverPlayer} setHoverPlayer={setHoverPlayer}
+            {playerRow.map((p, rowIndex) => <MakePlayerResult hoverPlayer={hoverPlayer}
+                                                              setHoverPlayer={setHoverPlayer}
                                                               playerData={p} index={index++}
                                                               final={rowIndex === playerRow.length - 1}
                                                               biggestLoser={biggestLoser}
-                                                              gameExposure={gameExposure}/>)}
+                                                              exposureDetails={exposureDetails}/>)}
         </div>
     )
 
@@ -705,21 +725,51 @@ function MarketResults({
         }
         playerRows[playerRows.length - 1].push(playerData)
     })
-
+    let marketValueExists = actualMarketValue !== null && actualMarketValue !== undefined;
+    const title = marketValueExists ? "Market Had A Value Of " + createUnit(actualMarketValue, unitDetails.tickDecimals, unitDetails) : (imHost ? "Set a market value for the game" : "Host has not yet set a market value")
+    const supportText = !marketValueExists ? "Simulate A Value" : "Simulate Another Value"
     return <div style={{display: "flex", flexDirection: "row", width: "100%", flexWrap: "wrap"}}>
         <div style={{padding: 20, marginLeft: "auto", marginRight: "auto"}}>
             <TradeDialog style={{padding: 15, maxWidth: 350, marginTop: 20, marginRight: "auto", marginLeft: "auto"}}>
                 <CardTitle>
-                    <h3>Market Had A Value Of {actualMarketValue}</h3>
+                    <h3>{title}</h3>
                 </CardTitle>
                 <CardContent>
-                    <TextField label={"Simulate Different Value"} type="number" value={inputtedMarketValue}
-                               placeholder={actualMarketValue.toString()}
-                               onChange={(val) => setInputtedMarketValue(val.target.value)}/>
+                    {
+                        imHost && actualMarketValue === null ?
+                            <div style={{display: "flex", flexDirection: "column"}}>
+                                <TextField label={"Final market value"} type="number" value={inputtedMarketValue}
+                                           sx={{m: 1, width: '25ch'}}
+                                           InputProps={{
+                                               startAdornment: <InputAdornment
+                                                   style={{color: "rgba(255, 255, 255, 0.7)"}}
+                                                   position="start">{unitDetails.unitPrefix}</InputAdornment>,
+                                               endAdornment: <InputAdornment
+                                                   position="start">{unitDetails.unitSuffix}</InputAdornment>,
+                                           }}
+                                           placeholder={actualMarketValue && actualMarketValue.toString()}
+                                           onChange={(val) => setInputtedMarketValue(val.target.value)}/>
+                                <Button onClick={() => {
+                                    submitMarketValue(inputtedMarketValue)
+                                }}> Submit </Button>
+                            </div>
+                            : <TextField label={supportText} type="number" value={inputtedMarketValue}
+                                         sx={{m: 1, width: '25ch'}}
+                                         InputProps={{
+                                             startAdornment: <InputAdornment style={{color: "rgba(255, 255, 255, 0.7)"}}
+                                                                             position="start">{unitDetails.unitPrefix}</InputAdornment>,
+                                             endAdornment: <InputAdornment
+                                                 position="start">{unitDetails.unitSuffix}</InputAdornment>,
+                                         }}
+                                         placeholder={actualMarketValue && actualMarketValue.toString()}
+                                         onChange={(val) => setInputtedMarketValue(val.target.value)}/>
+                    }
+
                 </CardContent>
             </TradeDialog>
             <CardContent style={{display: "flex", flexDirection: "column", justifyContent: "center"}}>
-                {playerRows.map(makePlayerRow)}
+                {marketValue === null ? <h2 style={{color: "white"}}>Simulate a market value to see
+                    results</h2> : playerRows.map(makePlayerRow)}
             </CardContent></div>
         <TickBook {...{
             unitDetails,
@@ -756,6 +806,9 @@ const loadingGif = '<?xml version="1.0" encoding="utf-8"?>\n' +
     '  <animateTransform attributeName="transform" type="rotate" repeatCount="indefinite" dur="1s" values="0 50 50;360 50 50" keyTimes="0;1"></animateTransform>\n' +
     '</circle>\n' +
     '<!-- [ldio] generated by https://loading.io/ --></svg>'
+
+// Don't know if this is neccesary
+
 
 function InviteButton() {
     const [copied, setCopied] = useState(false);
@@ -806,6 +859,7 @@ function TitleBar({onMarketEnd, expiryTimestamp, gameName}) {
         <MarketTimer onExpire={onMarketEnd} expiryTimestamp={expiryTimestamp}/> : undefined}<InviteButton/></div>;
 }
 
+
 const Market = (props) => {
     const {gameId} = useParams();
     const {replayData} = props;
@@ -818,12 +872,13 @@ const Market = (props) => {
     const [info, setInfo] = useState('');
 
     // Game state
-    const [name, setName] = useState('');
+    const [name, setName] = useState();
+    const [joiningName, setJoiningName] = useState('')
     const [joined, setJoined] = useState(false);
-    const [parties, setParties] = useState([]);
+    const [imHost, setImHost] = useState(undefined);
     const [bids, setBids] = useState([])
     const [asks, setAsks] = useState([])
-    const [marketOver, setMarketOver] = useState(false)
+    const [marketOver, setMarketOver] = useState(undefined)
     const [myOutstandingOrders, setMyOutStandingOrders] = useState([])
     const [ticks, setTicks] = useState([])
     const [playerData, setPlayerData] = useState({})
@@ -834,7 +889,14 @@ const Market = (props) => {
     const [marketValue, setMarketValue] = useState()
     const [finalTicks, setFinalTicks] = useState()
     const [unitDetails, setUnitDetails] = useState({})
-    const [gameExposure, setGameExposure] = useState()
+    const [exposureDetails, setExposureDetails] = useState()
+    const [queuedJoinName, setQueuedJoinName] = useState()
+
+    const sendEvent = (event, obj) => {
+        const token = GetUUID()
+        const requestWrapper = {token}
+        socket.emit(event, Object.assign(requestWrapper, obj))
+    }
 
     const stockData = useMemo(() => {
         const timeInterval = 60 * 1000;
@@ -882,21 +944,29 @@ const Market = (props) => {
         'info': ({message}) => {
             setInfo(message)
         },
-        'gameJoin': ({name: party}) => {
-            setParties((parties) => [...parties, party])
-        },
-        'erroneousAction': ({message}) => {
+        'erroneousAction': ({message, errorDetails}) => {
             setError("There was an error performing that last task. " + message)
-        }, 'youJoined': (playerData) => {
+            if (errorDetails && errorDetails.redirectHome) {
+                setTimeout(() => {
+                    document.location.href = '/'
+                }, 1500)
+            }
+        }, 'youJoined': (playerData, gameState) => {
             if (!joined) {
                 setJoined(true);
+                setGameState(gameState)
+                setMyOutStandingOrders(
+                    [...Object.values(playerData.outstandingBids), ...Object.values(playerData.outstandingAsks)]
+                )
                 setName(playerData.name)
             }
+        },
+        'gameStart': () => {
+            document.location.reload();
         },
         'gameView': ({
                          gameName,
                          gameMinutes,
-                         parties,
                          expiryTimestamp,
                          finalPlayerData,
                          finalTicks,
@@ -905,23 +975,30 @@ const Market = (props) => {
                          unitPrefix,
                          unitSuffix,
                          tickSize,
-                         gameExposure
+                         imHost,
+                         yourName,
+                         playerData,
+                         yourPlayerData,
+                         gameExposure,
+                         exposureCurrency,
                      }) => {
             if (!replayData) {
                 document.title = "Market - " + gameName
                 let title = getUrlFor(gameName).substring(0, 30);
                 window.history.replaceState(null, title, "/game/" + gameId + "/" + title)
             }
-            setParties(parties)
             setGameName(gameName)
+            setImHost(imHost)
             setGameMinutes(gameMinutes)
-            setExpiryTimestamp(new Date(expiryTimestamp))
+            setExpiryTimestamp(expiryTimestamp)
             setMarketOver(isExpired(expiryTimestamp))
             setFinalPlayerData(finalPlayerData)
-            setMarketValue(Number(marketValue))
+            setMarketValue(marketValue)
+            setPlayerData((currentPlayerData) => ({...currentPlayerData, ...yourPlayerData, ...playerData}))
             setFinalTicks(finalTicks)
             setUnitDetails({unitSuffix, unitPrefix, tickSize: Number(tickSize), tickDecimals: Number(tickDecimals)})
-            setGameExposure(gameExposure)//a
+            setExposureDetails({gameExposure, exposureCurrency})
+            setQueuedJoinName(yourName)
         }, 'playerDataUpdate': (updatedPlayerData) => {
             setPlayerData((playerData) => {
                 let playerDataCopy = {...playerData};
@@ -933,9 +1010,45 @@ const Market = (props) => {
                     return [...ticks, newTick]
                 }
             )
+        },
+        'marketValueUpdate': (newMarketValue) => {
+            setMarketValue(newMarketValue);
         }
     }
 
+    let setGameState = ({
+                            gameName,
+                            gameMinutes,
+                            gameId,
+                            bids,
+                            asks,
+                            ticks,
+                            playerData,
+                            expiryTimestamp,
+                            tickSize = 0.1,
+                            tickDecimals
+                        }) => {
+        console.log("Initial game state", {
+            gameName,
+            gameMinutes,
+            gameId,
+            bids,
+            asks,
+            ticks,
+            playerData,
+            tickSize
+        })
+        setBids(bids.reverse())
+        setAsks(asks)
+        setExpiryTimestamp(expiryTimestamp)
+        setGameName(gameName)
+        setGameMinutes(gameMinutes)
+        setTicks(ticks)
+        setPlayerData((oldPlayerData) => {
+            let playerDataCopy = {...playerData, ...oldPlayerData};
+            return playerDataCopy;
+        })
+    };
     const onJoinedHandlers = {
         'orderInsert': (order) => {
             const orderAddFunction = (orders) => {
@@ -950,57 +1063,10 @@ const Market = (props) => {
             }
             publicOrderList(orderAddFunction)
         },
-        'gameState': ({
-                          gameName,
-                          gameMinutes,
-                          gameId,
-                          parties,
-                          bids,
-                          asks,
-                          ticks,
-                          playerData,
-                          expiryTimestamp,
-                          tickSize = 0.1,
-                          tickDecimals
-                      }) => {
-            console.log("Initial game state", {
-                gameName,
-                gameMinutes,
-                gameId,
-                parties,
-                bids,
-                asks,
-                ticks,
-                playerData,
-                tickSize
-            })
-            setParties(parties)
-            setBids(bids.reverse())
-            setAsks(asks)
-            setMyOutStandingOrders((orders) => {
-                return [...orders, ...bids.filter((bid) => bid.name === name), ...asks.filter((ask) => ask.name === name)]
-            })
-            setGameName(gameName)
-            setGameMinutes(gameMinutes)
-            setTicks(ticks)
-            setPlayerData((oldPlayerData) => {
-                let playerDataCopy = {...playerData, ...oldPlayerData};
-                return playerDataCopy;
-            })
-        },
+        'gameState': setGameState,
         'orderUpdate': (newOrder) => {
+            // todo you were here, name doesn't get set.
             const orderAddFunction = ((orders) => {
-                /*
-                    for (let i = 0; i < orders.length; i++) {
-                    if (orders[i].orderId === newOrder.orderId) {
-                        if (newOrder.volume === 0) {
-                            orders.splice(i,1);
-                        } else {
-                            orders[i] = newOrder
-                        }
-                        break
-                    }
-                }*/
                 const retOrders = [...orders]
 
                 for (let i = 0; i < retOrders.length; i++) {
@@ -1025,9 +1091,23 @@ const Market = (props) => {
     }
 
     useEffect(() => {
+        if (!joined) document.title = "Joining a market"
+
         if (replayData) {
             let i = 0
-            marketEventHandlers['youJoined']({name: null})
+            marketEventHandlers['youJoined']({name: null, outstandingBids: {}, outstandingAsks: {}}, {
+                "gameName": "Example Game",
+                "gameMinutes": 5,
+                "gameId": 0,
+                "parties": [],
+                "playerData": {},
+                "bids": [],
+                "asks": [],
+                expiryTimestamp: 99999999999,
+                "ticks": [],
+                "transactionId": 1,
+                "ackTimestamp": 1637721063820
+            })
             setInterval(() => {
                 if (i >= replayData.length) {
                     return;
@@ -1046,22 +1126,24 @@ const Market = (props) => {
             .forEach(([event, handler]) =>
                 socket.on(event, handler))
 
-        socket.emit('viewGame', {gameId});
+        sendEvent('viewGame', {gameId});
     }, [])
 
     // Stuff that requires game state
     useEffect(() => {
-        if (!joined || replayData) {
+        if (!joined || !name || replayData) {
             return;
         }
         Object.entries(onJoinedHandlers)
             .forEach(([event, handler]) =>
                 socket.on(event, handler))
 
-    }, [joined])
-
+    }, [joined, name])
+    const startGame = () => {
+        return sendEvent("startGame");
+    }
     const submitOrder = (price, volume, orderType) => {
-        if (volume === 0 || price === 0) {
+        if (volume === 0) {
             return;
         }
         const [coercedPrice, tooFar] = coerceToPrice(price, unitDetails.tickSize, unitDetails.tickDecimals);
@@ -1072,7 +1154,7 @@ const Market = (props) => {
         }
         const isBid = volume > 0
         const order = {unsanitizedPrice: price, unsanitizedVolume: isBid ? volume : -volume, isBid, orderType};
-        socket.emit('insertOrder', order);
+        sendEvent('insertOrder', order);
     }
 
     const sendIoc = (price, volume) => {
@@ -1080,12 +1162,18 @@ const Market = (props) => {
     }
 
     const submitName = () => {
-        socket.emit("joinGame", {name});
+        sendEvent("joinGame", {name: getShortname(joiningName)});
+    }
+
+    const submitMarketValue = (marketValue) => {
+        sendEvent("updateMarketValue", {marketValue})
     }
 
     const cancelOrderById = (orderId) => {
-        socket.emit("cancelOrder", {orderId})
+        sendEvent("cancelOrder", {orderId})
     }
+
+
     const yourPlayerData = useMemo(() => {
         return playerData[name];
     }, [joined, playerData])
@@ -1097,7 +1185,6 @@ const Market = (props) => {
     const standingAskVol = useMemo(() => {
         return myOutstandingOrders.reduce((sum, {volume, isBid}) => sum + (!isBid ? volume : 0), 0)
     }, [myOutstandingOrders])
-
     const [price, setPrice] = useState(0);
 
     //let alert = useAlert();
@@ -1114,7 +1201,7 @@ const Market = (props) => {
     }
 
     const pullOrders = () => {
-        socket.emit("pullOrders")
+        sendEvent("pullOrders")
     }
 
     // const exampleMarketData = [{date: new Date().getTime(), open: 3, high: 5, low: 2, close: 2},
@@ -1124,22 +1211,22 @@ const Market = (props) => {
     const halfMargin = 5;
     const onMarketEnd = () => {
         setMarketOver(true);
-        socket.emit("viewGame")
+        sendEvent("viewGame")
     }
     const lrMargins = {marginLeft: halfMargin, marginRight: halfMargin}
     const tbPaddings = {paddingTop: halfMargin * 2, paddingBottom: halfMargin * 2}
-    return (
-        <MuiThemeProvider theme={themeOptions}>
-            <Snackbar open={error || info} autoHideDuration={6000} onClose={() => {
-                setError("");
-                setInfo("");
-            }} ref={errorContainer}>
-                {error ?
-                    <Slide direction="up" in={error} container={errorContainer.current}>
-                        <Alert severity="error">{error}</Alert>
-                    </Slide>
-                    : info ?
-                        <Slide direction="up" in={info} container={errorContainer.current}>
+
+    return <MuiThemeProvider theme={themeOptions}>
+        <Snackbar open={error || info} autoHideDuration={6000} onClose={() => {
+            setError("");
+            setInfo("");
+        }} ref={errorContainer}>
+            {error ?
+                <Slide direction="up" in={error} container={errorContainer.current}>
+                    <Alert severity="error">{error}</Alert>
+                </Slide>
+                : info ?
+                    <Slide direction="up" in={info} container={errorContainer.current}>
                             <Alert severity="info">{info}</Alert>
                         </Slide> : undefined}
             </Snackbar>
@@ -1149,183 +1236,203 @@ const Market = (props) => {
                                             ticks={finalTicks}
                                             unitDetails={unitDetails}
                                             gameName={gameName}
+                                            submitMarketValue={submitMarketValue}
+                                            imHost={imHost}
                                             gameMinutes={gameMinutes}
                                             expiryTimestamp={expiryTimestamp}
-                                            gameExposure={gameExposure}
+                                            exposureDetails={exposureDetails}
                                             marketValue={marketValue}
-                                            name={name}/> : !joined ?
-                    <TradeDialog style={{
-                        display: "flex",
-                        margin: "auto",
-                        marginTop: 50,
-                        flexDirection: "column",
-                        paddingRight: 35,
-                        width: "auto",
-                        minWidth: 300,
-                        maxWidth: 600,
-                        paddingBottom: 35,
-                        paddingLeft: 35
-                    }}>
-                        <h4 style={{marginBottom: 25, alignSelf: "flex-start"}}> Market </h4>
-                        <h2 style={{marginBottom: '10'}}>{`${gameName}`}</h2>
-                        <h4 style={{marginBottom: 25}}>
-                            {expiryTimestamp !== undefined ?
-                                <MarketTimer onExpire={onMarketEnd} expiryTimestamp={expiryTimestamp} fontSize={15}
-                                             shortenText={true}/> : undefined}
-                            remaining of {gameMinutes}m
-                        </h4>
-                        <h4 style={{marginBottom: 25, alignSelf: "flex-start"}}> Current players </h4>
-
-
-                        <div style={{
+                                            name={name}/> :
+                    !replayData && !(joined && expiryTimestamp) ?
+                        <TradeDialog style={{
                             display: "flex",
-                            marginTop: 10,
-                            flexWrap: "wrap",
-                            justifyContent: "space-around",
-                            alignItems: "center"
-                        }}>
-                            {Object.values(parties).map((name) => (
-                                <PlayerChip name={name}/>
-                            ))}
-                        </div>
-                        <TextField value={name} style={{marginTop: 30}}
-                                   onChange={(val) => setName(val.target.value.toUpperCase())}
-                                   label={`Joining market as`}/>
-                        {
-                            name ? <>
-                                <div style={{
-                                    display: "flex",
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    marginTop: 30
-                                }}>
-                                    <div style={{flex: 1}}/>
-                                    <Button onClick={() => submitName()}>
-                                        Joining Market as
-                                    </Button>
-                                    <PlayerChip name={name}/>
-                                </div>
-                            </> : []
-                        }
-
-
-                    </TradeDialog>
-                    :
-                    [
-
-                        <div style={{
-                            width: "100%",
-                            height: "100%",
-                            display: "flex",
+                            margin: "auto",
+                            marginTop: 50,
                             flexDirection: "column",
-                            background: themeOptions.palette.background.default
+                            paddingRight: 35,
+                            width: "auto",
+                            minWidth: 300,
+                            maxWidth: 600,
+                            paddingBottom: 35,
+                            paddingLeft: 35
                         }}>
+                            <h4 style={{marginBottom: 25, alignSelf: "flex-start"}}> Market </h4>
+                            <h2 style={{marginBottom: 5}}>{`${gameName}`}</h2>
+                            {expiryTimestamp !== undefined ?
+                                <h4 style={{marginBottom: 10}}>{[<MarketTimer onExpire={onMarketEnd}
+                                                                              expiryTimestamp={expiryTimestamp}
+                                                                              fontSize={15}
+                                                                              shortenText={true}/>, expiryTimestamp !== null ? `remaining of ${gameMinutes}m` : ""]}
+                                </h4> : undefined
+                            }
+                            {exposureDetails ? <h4>
+                                Exposure {exposureDetails.exposureCurrency + exposureDetails.gameExposure}
+                            </h4> : undefined}
+                            {exposureDetails ? <h4>
+                                Duration {gameMinutes}m
+                            </h4> : undefined}
+                            <h4 style={{marginBottom: 25, marginTop: 10, alignSelf: "flex-start"}}> Current
+                                players </h4>
+
+
                             <div style={{
                                 display: "flex",
-                                flexDirection: 'row',
-                                height: "100%",
+                                marginTop: 10,
+                                flexWrap: "wrap",
+                                justifyContent: "space-around",
+                                alignItems: "center"
+                            }}>
+                                {Object.values(playerData).map(({name}) => (
+                                    <PlayerChip name={name}/>
+                                ))}
+                            </div>
+                            {!name ? <TextField value={joiningName} style={{marginTop: 30}}
+                                                onChange={(val) => setJoiningName(val.target.value.toUpperCase())}
+                                                label={`Full Name / Initials`}/> : undefined}
+                            <div style={{
+                                display: "flex",
+                                flexDirection: "row",
+                                alignItems: "center",
+                                marginTop: 30
+                            }}>
+
+                                {name ?
+                                    [imHost ? <Button onClick={() => startGame()}> Start Game </Button> : undefined,
+                                        <div style={{marginLeft: "auto", marginRight: 10}}>✔️ Joining As️</div>,
+                                        <PlayerChip name={queuedJoinName}/>]
+                                    :
+                                    [
+                                        joiningName ?
+                                            <>
+                                                <Button style={{marginLeft: "auto"}} onClick={() => {
+                                                    submitName();
+                                                    setQueuedJoinName(joiningName)
+                                                }}>
+                                                    Join Market as
+                                                </Button>
+                                                <PlayerChip name={joiningName}/>
+                                            </>
+                                            : []]
+                                }</div>
+
+
+                        </TradeDialog>
+                        :
+                        [
+                            <div style={{
                                 width: "100%",
-                                flexWrap: "wrap"
+                                flex: 1,
+                                display: "flex",
+                                flexDirection: "column",
+                                minHeight: 0,
+                                height: "100%",
+                                background: themeOptions.palette.background.default
                             }}>
                                 <div style={{
                                     display: "flex",
-                                    flex: 3,
-                                height: "inherit",
-                                flexDirection: "column",
-                                minHeight: 350,
-                                flexBasis: "400px",
-                                ...lrMargins
-                            }}>
-                                <div style={{flex: 2, display: "block", width: "100%"}}>
-                                    <div style={{height: "100%"}}><Chart options={{
-                                        chart: {
-                                            type: 'candlestick',
-                                            height: "100%",
-                                            width: "100%",
-                                            animations: {
-                                                enabled: false,
-                                                dynamicAnimation: {
-                                                    enabled: false,
-                                                }
-                                            }
-
-                                        },
-                                        title: {
-                                            text: gameName,
-                                            align: 'left'
-                                        },
-                                        xaxis: {
-                                            type: 'datetime'
-                                        },
-                                        yaxis: {
-                                            tooltip: {
-                                                enabled: false
-                                            }
-                                        }
-                                    }} height={"100%"} series={[{
-                                        data: stockData
-                                    }]} type="candlestick"/>
-                                    </div>
-                                </div>
-                                    <PlayerDataDiag style={{}} playerData={Object.values(playerData)} name={name}
-                                                    unitDetails={unitDetails} gameExposure={gameExposure}/>
-                            </div>
-                            <div style={{
-                                display: "flex",
-                                height: "inherit",
-                                flexDirection: 'column',
-                                flex: 2,
-                                flexBasis: 220,
-                                maxWidth: 500, ...lrMargins
-                            }}>
-                                <OrderBook {...{
-                                    bids,
-                                    asks,
-                                    name,
-                                    sendIoc,
-                                    socket,
-                                    cancelOrderById,
-                                    unitDetails,
-                                    placeDimeBid,
-                                    placeDimeAsk,
-                                    pullOrders,
-                                    youHaveOutstandingOrders: myOutstandingOrders.length > 0,
-                                    asksExist: asks.length > 0,
-                                    bidsExist: bids.length > 0,
-                                    style: {display: "flex", flexBasis: 400, flexDirection: "column", flex: 1.5}
-                                }} setActivePrice={setPrice}/>
-                                <OrderWindow {...{
-                                    unitDetails,
-                                    price,
-                                    setPrice,
-                                    name,
-                                    standingAskVol,
-                                    standingBidVol,
-                                    yourPlayerData,
-                                    submitOrder,
-                                    style: {
+                                    flexDirection: 'row',
+                                    height: "100%",
+                                    minHeight: 700,
+                                    width: "100%",
+                                    flexWrap: "wrap",
+                                }}>
+                                    <div style={{
                                         display: "flex",
+                                        flex: 3,
                                         flexDirection: "column",
-                                        alignItems: "center",
-                                        marginTop: halfMargin * 2
-                                    }
-                                }} />
+                                        minHeight: 350,
+                                        height: "100%",
+                                        flexBasis: "400px",
+                                        ...lrMargins
+                                    }}>
+                                        <div style={{flex: 2, display: "block", width: "100%"}}>
+                                            <div style={{height: "100%"}}>
+                                                <Chart options={{
+                                                    chart: {
+                                                        type: 'candlestick',
+                                                        height: "100%",
+                                                        width: "100%",
+                                                        animations: {
+                                                            enabled: false,
+                                                            dynamicAnimation: {
+                                                                enabled: false,
+                                                            }
+                                                        }
+
+                                                    },
+                                                    title: {
+                                                        text: gameName,
+                                                        align: 'left'
+                                                    },
+                                                    xaxis: {
+                                                        type: 'datetime'
+                                                    },
+                                                    yaxis: {
+                                                        tooltip: {
+                                                            enabled: false
+                                                        }
+                                                    }
+                                                }} height={"100%"} series={[{
+                                                    data: stockData
+                                                }]} type="candlestick"/>
+                                            </div>
+                                        </div>
+                                        <PlayerDataDiag style={{}} playerData={Object.values(playerData)} name={name}
+                                                        unitDetails={unitDetails} exposureDetails={exposureDetails}/>
+                                    </div>
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: 'column',
+                                        flex: 2,
+                                        height: "100%",
+                                        flexBasis: 220,
+                                        minHeight: 700,
+                                        maxWidth: 500, ...lrMargins
+                                    }}>
+                                        <OrderBook {...{
+                                            bids,
+                                            asks,
+                                            name,
+                                            sendIoc,
+                                            socket,
+                                            cancelOrderById,
+                                            unitDetails,
+                                            placeDimeBid,
+                                            placeDimeAsk,
+                                            pullOrders,
+                                            youHaveOutstandingOrders: myOutstandingOrders.length > 0,
+                                            asksExist: asks.length > 0,
+                                            bidsExist: bids.length > 0,
+                                            style: {display: "flex", flexDirection: "column", flex: 1.5}
+                                        }} setActivePrice={setPrice}/>
+                                        <OrderWindow {...{
+                                            unitDetails,
+                                            price,
+                                            setPrice,
+                                            name,
+                                            standingAskVol,
+                                            standingBidVol,
+                                            yourPlayerData,
+                                            submitOrder,
+                                            style: {
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                alignItems: "center",
+                                                marginTop: halfMargin * 2
+                                            }
+                                        }} />
+                                    </div>
+                                    <TickBook ticks={ticks} name={name} style={{
+                                        background: themeOptions.palette.secondary.dark,
+                                        flex: 0.5,
+                                        minHeight: 700,
+                                        marginRight: "auto", marginLeft: "auto",
+                                        flexBasis: 120, ...lrMargins
+                                    }} unitDetails={unitDetails}/>
+                                </div>
                             </div>
-                            <TickBook ticks={ticks} name={name} style={{
-                                background: themeOptions.palette.secondary.dark,
-                                height: "inherit",
-                                flex: 0.5, minHeight: 300,
-                                marginRight: "auto", marginLeft: "auto",
-                                flexBasis: 120, ...lrMargins
-                            }} unitDetails={unitDetails}/>
-                            </div>
-                            <div style={{height: halfMargin}}/>
-
-                        </div>
-
-
-                    ]}
-        </MuiThemeProvider>)
+                        ]}
+    </MuiThemeProvider>;
 }
 
 

@@ -1,5 +1,5 @@
 {
-  "name": "untitled",
+  "name": "market-made-web",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -17,11 +17,12 @@
     "react-alert": "^7.0.3",
     "react-alert-template-basic": "^1.0.2",
     "react-dom": "^17.0.2",
-    "react-timer-hook": "^3.0.5",
     "react-router-dom": "^5.3.0",
     "react-scripts": "4.0.3",
     "react-stockcharts": "^0.7.8",
+    "react-timer-hook": "^3.0.5",
     "socket.io-client": "^4.2.0",
+    "uuid": "^8.3.2",
     "web-vitals": "^1.1.2"
   },
   "scripts": {
